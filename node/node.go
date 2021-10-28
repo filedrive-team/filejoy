@@ -138,6 +138,10 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("swarm listen on: ")
+	for _, addr := range cfg.ListenAddrs {
+		fmt.Printf("%s\n", addr)
+	}
 
 	dhtopts := fullrt.DHTOption(
 		//dht.Validator(in.Validator),

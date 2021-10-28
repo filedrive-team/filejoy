@@ -3,9 +3,11 @@ package config
 import (
 	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 
+	"github.com/filedrive-team/filehelper"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
@@ -14,8 +16,6 @@ const DefaultRepoPath = "~/.filejoy"
 const DefaultNodeConf = "config.json"
 const lvdspath = "datastore"
 const dscfgpath = "dscluster.json"
-const defaultListenAddr = "/ip4/127.0.0.1/tcp/8668"
-const defaultJSONRPCPort = 3456
 const defaultJSONRPCHost = "0.0.0.0"
 const defaultJSONRPCRoot = "/rpc/v0"
 
@@ -26,7 +26,7 @@ type Identity struct {
 
 type JSONRPC struct {
 	Host string `json:"host"`
-	Port int    `json:"port"`
+	Port string `json:"port"`
 	Root string `json:"root"`
 }
 
@@ -52,12 +52,12 @@ func LoadOrInitConfig(path string) (*Config, error) {
 			return nil, err
 		}
 		cfg = &Config{
-			ListenAddrs:   []string{defaultListenAddr},
+			ListenAddrs:   []string{fmt.Sprintf("/ip4/0.0.0.0/tcp/%s", filehelper.RandPort())},
 			Datastore:     lvdspath,
 			DSClusterConf: dscfgpath,
 			RPC: JSONRPC{
 				Host: defaultJSONRPCHost,
-				Port: defaultJSONRPCPort,
+				Port: filehelper.RandPort(),
 				Root: defaultJSONRPCRoot,
 			},
 		}

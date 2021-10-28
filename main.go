@@ -95,11 +95,11 @@ var daemonCmd = &cli.Command{
 		m.Handle(cfg.RPC.Root, rpcServer)
 
 		srv := &http.Server{
-			Addr:    fmt.Sprintf("%s:%d", cfg.RPC.Host, cfg.RPC.Port),
+			Addr:    fmt.Sprintf("%s:%s", cfg.RPC.Host, cfg.RPC.Port),
 			Handler: m,
 		}
 		go func() {
-			logging.Infof("serve rpc at: %s:%d", cfg.RPC.Host, cfg.RPC.Port)
+			fmt.Printf("\n\n serve json rpc at: %s:%s\n", cfg.RPC.Host, cfg.RPC.Port)
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				logging.Fatalf("listen: %s", err)
 			}

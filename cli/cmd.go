@@ -56,7 +56,7 @@ func GetAPI(c *cli.Context) (api.FullNode, jsonrpc.ClientCloser, error) {
 	}
 	apiclient := &api.FullNodeClient{}
 
-	closer, err := jsonrpc.NewClient(ctx, fmt.Sprintf("ws://%s:%d%s", cfg.RPC.Host, cfg.RPC.Port, cfg.RPC.Root), "Filejoy", apiclient, nil)
+	closer, err := jsonrpc.NewClient(ctx, fmt.Sprintf("ws://%s:%s%s", cfg.RPC.Host, cfg.RPC.Port, cfg.RPC.Root), "Filejoy", apiclient, nil)
 	if err != nil {
 		return nil, nil, err
 	}
