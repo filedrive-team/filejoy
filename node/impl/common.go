@@ -2,11 +2,14 @@ package impl
 
 import (
 	"context"
+	"io"
+	"os"
 
 	"github.com/filedrive-team/filehelper"
 	"github.com/filedrive-team/filejoy/node"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-merkledag"
+	ufsio "github.com/ipfs/go-unixfs/io"
 )
 
 type CommonAPI struct {
@@ -30,4 +33,22 @@ func (a *CommonAPI) Add(ctx context.Context, path string) ([]cid.Cid, error) {
 		res = append(res, fileNode.Cid())
 	}
 	return res, nil
+}
+
+func (a *CommonAPI) Get(ctx context.Context, cid cid.Cid, path string) error {
+	dagNode, err := a.Node.Dagserv.Get(ctx, cid)
+	if err != nil {
+		return err
+	}
+	fdr, err := ufsio.NewDagReader(ctx, dagNode, a.Node.Dagserv)
+	if err != nil {
+		return err
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, fdr)
+
+	return err
 }

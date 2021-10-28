@@ -11,6 +11,7 @@ import (
 
 type Common interface {
 	Add(context.Context, string) ([]cid.Cid, error)
+	Get(context.Context, cid.Cid, string) error
 }
 
 type Net interface {
@@ -43,6 +44,7 @@ type FullNodeClient struct {
 	ID      func(context.Context) (peer.ID, error)
 	DagStat func(context.Context, cid.Cid) (*format.NodeStat, error)
 	Add     func(context.Context, string) ([]cid.Cid, error)
+	Get     func(context.Context, cid.Cid, string) error
 }
 
 type FullNodeClientApi struct {
@@ -79,4 +81,8 @@ func (a *FullNodeClientApi) DagStat(ctx context.Context, cid cid.Cid) (*format.N
 
 func (a *FullNodeClientApi) Add(ctx context.Context, path string) ([]cid.Cid, error) {
 	return a.Emb.Add(ctx, path)
+}
+
+func (a *FullNodeClientApi) Get(ctx context.Context, cid cid.Cid, path string) error {
+	return a.Emb.Get(ctx, cid, path)
 }
