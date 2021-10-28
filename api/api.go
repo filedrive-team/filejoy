@@ -3,9 +3,15 @@ package api
 import (
 	"context"
 
+	"github.com/ipfs/go-cid"
+	format "github.com/ipfs/go-ipld-format"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
 )
+
+type Common interface {
+	Add(context.Context, string) ([]cid.Cid, error)
+}
 
 type Net interface {
 	NetConnectedness(context.Context, peer.ID) (network.Connectedness, error)
@@ -17,8 +23,14 @@ type Net interface {
 	ID(context.Context) (peer.ID, error)
 }
 
+type Dag interface {
+	DagStat(context.Context, cid.Cid) (*format.NodeStat, error)
+}
+
 type FullNode interface {
+	Common
 	Net
+	Dag
 }
 
 type FullNodeClient struct {
@@ -28,7 +40,9 @@ type FullNodeClient struct {
 	NetAddrsListen   func(context.Context) (peer.AddrInfo, error)
 	NetDisconnect    func(context.Context, peer.ID) error
 
-	ID func(context.Context) (peer.ID, error)
+	ID      func(context.Context) (peer.ID, error)
+	DagStat func(context.Context, cid.Cid) (*format.NodeStat, error)
+	Add     func(context.Context, string) ([]cid.Cid, error)
 }
 
 type FullNodeClientApi struct {
@@ -57,4 +71,12 @@ func (a *FullNodeClientApi) NetAddrsListen(ctx context.Context) (peer.AddrInfo, 
 
 func (a *FullNodeClientApi) NetDisconnect(ctx context.Context, p peer.ID) error {
 	return a.Emb.NetDisconnect(ctx, p)
+}
+
+func (a *FullNodeClientApi) DagStat(ctx context.Context, cid cid.Cid) (*format.NodeStat, error) {
+	return a.Emb.DagStat(ctx, cid)
+}
+
+func (a *FullNodeClientApi) Add(ctx context.Context, path string) ([]cid.Cid, error) {
+	return a.Emb.Add(ctx, path)
 }

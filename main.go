@@ -79,8 +79,14 @@ var daemonCmd = &cli.Command{
 
 		// serve rpc
 		var fapi api.FullNode = &impl.FullNodeAPI{
+			CommonAPI: impl.CommonAPI{
+				Node: nd,
+			},
 			NetAPI: impl.NetAPI{
 				Host: nd.Host,
+			},
+			DagAPI: impl.DagAPI{
+				Node: nd,
 			},
 		}
 		m := mux.NewRouter()

@@ -20,7 +20,9 @@ import (
 var log = logging.Logger("filejoy-cli")
 
 var Commands = []*cli.Command{
+	AddCmd,
 	WithCategory("network", NetCmd),
+	WithCategory("dag", DagCmd),
 }
 
 func WithCategory(cat string, cmd *cli.Command) *cli.Command {

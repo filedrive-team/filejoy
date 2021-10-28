@@ -5,7 +5,9 @@ import (
 )
 
 type FullNodeAPI struct {
+	CommonAPI
 	NetAPI
+	DagAPI
 }
 
 var _ api.FullNode = &FullNodeAPI{}
