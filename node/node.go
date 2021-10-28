@@ -1,8 +1,10 @@
 package node
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"time"
 
@@ -27,6 +29,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/host"
 	metrics "github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p-core/pnet"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
 	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
@@ -101,7 +104,6 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		libp2p.Identity(peerkey),
 		libp2p.BandwidthReporter(bwc),
 		libp2p.DefaultTransports,
-		libp2p.Transport(libp2pquic.NewTransport),
 	}
 
 	if len(cfg.AnnounceAddrs) > 0 {
@@ -116,6 +118,20 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		opts = append(opts, libp2p.AddrsFactory(func([]multiaddr.Multiaddr) []multiaddr.Multiaddr {
 			return addrs
 		}))
+	}
+	var isPrivatenetwork bool
+	// check pnet
+	if kb, err := ioutil.ReadFile(filepath.Join(repoPath, "swarm.key")); err == nil {
+		psk, err := pnet.DecodeV1PSK(bytes.NewReader(kb))
+		if err != nil {
+			return nil, fmt.Errorf("failed to configure private network: %s", err)
+		}
+		opts = append(opts, libp2p.PrivateNetwork(psk))
+		isPrivatenetwork = true
+		fmt.Println("******************** Notification: Pnet Enabled ******************")
+	}
+	if !isPrivatenetwork {
+		opts = append(opts, libp2p.Transport(libp2pquic.NewTransport))
 	}
 
 	h, err := libp2p.New(ctx, opts...)
