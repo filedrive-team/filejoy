@@ -16,10 +16,18 @@ const lvdspath = "datastore"
 const dscfgpath = "dscluster.json"
 const defaultListenAddr = "/ip4/127.0.0.1/tcp/8668"
 const defaultJSONRPCPort = 3456
+const defaultJSONRPCHost = "0.0.0.0"
+const defaultJSONRPCRoot = "/rpc/v0"
 
 type Identity struct {
 	PeerID string `json:"peer_id"`
 	SK     []byte `json:"sk"`
+}
+
+type JSONRPC struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	Root string `json:"root"`
 }
 
 type Config struct {
@@ -27,9 +35,9 @@ type Config struct {
 	ListenAddrs   []string `json:"listen_addrs"`
 	AnnounceAddrs []string `json:"announce_addrs"`
 
-	Datastore     string `json:"datastore"`
-	DSClusterConf string `json:"ds_cluster_conf"`
-	JSONRPCPort   int    `json:"json_rpc_port"`
+	Datastore     string  `json:"datastore"`
+	DSClusterConf string  `json:"ds_cluster_conf"`
+	RPC           JSONRPC `json:"rpc"`
 }
 
 func LoadOrInitConfig(path string) (*Config, error) {
@@ -47,10 +55,15 @@ func LoadOrInitConfig(path string) (*Config, error) {
 			ListenAddrs:   []string{defaultListenAddr},
 			Datastore:     lvdspath,
 			DSClusterConf: dscfgpath,
-			JSONRPCPort:   defaultJSONRPCPort,
+			RPC: JSONRPC{
+				Host: defaultJSONRPCHost,
+				Port: defaultJSONRPCPort,
+				Root: defaultJSONRPCRoot,
+			},
 		}
 
 		priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
+		//priv, _, err := crypto.GenerateECDSAKeyPair(rand.Reader) // Qm
 		if err != nil {
 			return nil, err
 		}
@@ -74,5 +87,17 @@ func LoadOrInitConfig(path string) (*Config, error) {
 		}
 	}
 
+	return cfg, nil
+}
+
+func LoadConfig(path string) (*Config, error) {
+	cfg := &Config{}
+	cbs, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(cbs, cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }

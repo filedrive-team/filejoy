@@ -11,6 +11,7 @@ import (
 
 	"github.com/filecoin-project/go-jsonrpc"
 	"github.com/filedrive-team/filejoy/api"
+	fcli "github.com/filedrive-team/filejoy/cli"
 	"github.com/filedrive-team/filejoy/node"
 	ncfg "github.com/filedrive-team/filejoy/node/config"
 	"github.com/filedrive-team/filejoy/node/impl"
@@ -23,7 +24,7 @@ import (
 var logging = log.Logger("filejoy")
 
 func init() {
-	log.SetLogLevel("filejoy", "INFO")
+	log.SetLogLevelRegex("^filejoy", "INFO")
 }
 
 func main() {
@@ -41,7 +42,7 @@ func main() {
 				EnvVars: []string{"FILEJOY_PATH"},
 			},
 		},
-		Commands: local,
+		Commands: append(local, fcli.Commands...),
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -75,6 +76,7 @@ var daemonCmd = &cli.Command{
 			return err
 		}
 		defer nd.Host.Close()
+
 		// serve rpc
 		var fapi api.FullNode = &impl.FullNodeAPI{
 			NetAPI: impl.NetAPI{
@@ -84,17 +86,16 @@ var daemonCmd = &cli.Command{
 		m := mux.NewRouter()
 		rpcServer := jsonrpc.NewServer()
 		rpcServer.Register("Filejoy", fapi)
-		m.Handle("/rpc/v0", rpcServer)
+		m.Handle(cfg.RPC.Root, rpcServer)
 
 		srv := &http.Server{
-			Addr:    fmt.Sprintf(":%d", cfg.JSONRPCPort),
+			Addr:    fmt.Sprintf("%s:%d", cfg.RPC.Host, cfg.RPC.Port),
 			Handler: m,
 		}
 		go func() {
+			logging.Infof("serve rpc at: %s:%d", cfg.RPC.Host, cfg.RPC.Port)
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				logging.Fatalf("listen: %s", err)
-			} else {
-				logging.Infof("serve rpc at: %d", cfg.JSONRPCPort)
 			}
 		}()
 
