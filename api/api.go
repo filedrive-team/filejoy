@@ -9,9 +9,15 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 )
 
+type PBar struct {
+	Total   int64
+	Current int64
+	Err     string
+}
+
 type Common interface {
 	Add(context.Context, string) ([]cid.Cid, error)
-	Get(context.Context, cid.Cid, string) error
+	Get(context.Context, cid.Cid, string) (chan PBar, error)
 }
 
 type Net interface {
@@ -44,7 +50,7 @@ type FullNodeClient struct {
 	ID      func(context.Context) (peer.ID, error)
 	DagStat func(context.Context, cid.Cid) (*format.NodeStat, error)
 	Add     func(context.Context, string) ([]cid.Cid, error)
-	Get     func(context.Context, cid.Cid, string) error
+	Get     func(context.Context, cid.Cid, string) (chan PBar, error)
 }
 
 type FullNodeClientApi struct {
@@ -83,6 +89,6 @@ func (a *FullNodeClientApi) Add(ctx context.Context, path string) ([]cid.Cid, er
 	return a.Emb.Add(ctx, path)
 }
 
-func (a *FullNodeClientApi) Get(ctx context.Context, cid cid.Cid, path string) error {
+func (a *FullNodeClientApi) Get(ctx context.Context, cid cid.Cid, path string) (chan PBar, error) {
 	return a.Emb.Get(ctx, cid, path)
 }
