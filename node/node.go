@@ -17,7 +17,6 @@ import (
 	"github.com/ipfs/go-datastore"
 	ds "github.com/ipfs/go-datastore"
 	dsmount "github.com/ipfs/go-datastore/mount"
-	dss "github.com/ipfs/go-datastore/sync"
 	levelds "github.com/ipfs/go-ds-leveldb"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
@@ -175,9 +174,8 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 			Datastore: cds,
 		},
 	})
-	//bs2 := blockstore.NewBlockstore(dss.MutexWrap(ds))
 
-	var blkst blockstore.Blockstore = blockstore.NewBlockstore(dss.MutexWrap(cds))
+	var blkst blockstore.Blockstore = blockstore.NewBlockstore(cds.(*dsmount.Datastore))
 
 	bsnet := bsnet.NewFromIpfsHost(h, frt)
 
