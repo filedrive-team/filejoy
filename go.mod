@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
-	github.com/filedrive-team/filehelper v0.0.5
+	github.com/filedrive-team/filehelper v0.0.6
 	github.com/filedrive-team/go-ds-cluster v0.0.6-0.20211029051144-10c8cf554437
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect

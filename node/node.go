@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	pbstore "github.com/filedrive-team/filehelper/blockstore"
 	ncfg "github.com/filedrive-team/filejoy/node/config"
 	"github.com/filedrive-team/go-ds-cluster/clusterclient"
 	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
@@ -15,7 +16,6 @@ import (
 	bsnet "github.com/ipfs/go-bitswap/network"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-datastore"
-	ds "github.com/ipfs/go-datastore"
 	dsmount "github.com/ipfs/go-datastore/mount"
 	levelds "github.com/ipfs/go-ds-leveldb"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
@@ -160,7 +160,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	if err != nil {
 		return nil, err
 	}
-	var cds ds.Datastore
+	var cds datastore.Datastore
 	cds, err = clusterclient.NewClusterClient(context.Background(), dcfg)
 	if err != nil {
 		return nil, err
@@ -173,6 +173,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	})
 
 	var blkst blockstore.Blockstore = blockstore.NewBlockstore(cds.(*dsmount.Datastore))
+	blkst = pbstore.NewParaBlockstore(blkst, 25)
 
 	bsnet := bsnet.NewFromIpfsHost(h, frt)
 

@@ -12,6 +12,7 @@ var DagCmd = &cli.Command{
 	Usage: "Manage dag",
 	Subcommands: []*cli.Command{
 		DagStat,
+		DagSync,
 	},
 }
 
@@ -38,6 +39,40 @@ var DagStat = &cli.Command{
 			return err
 		}
 		fmt.Printf("%v\n", stat)
+
+		return nil
+	},
+}
+
+var DagSync = &cli.Command{
+	Name:  "sync",
+	Usage: "sync dags",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+		args := cctx.Args().Slice()
+		var cids = make([]cid.Cid, 0)
+		for _, cidstr := range args {
+			cid, err := cid.Decode(cidstr)
+			if err != nil {
+				return err
+			}
+			cids = append(cids, cid)
+		}
+
+		api, closer, err := GetAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		msgch, err := api.DagSync(ctx, cids)
+		if err != nil {
+			return err
+		}
+		for msg := range msgch {
+			fmt.Println(msg)
+		}
 
 		return nil
 	},
