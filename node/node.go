@@ -44,27 +44,6 @@ var log = logging.Logger("filejoy-node")
 // 	"/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
 // 	"/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
 // }
-var bootstrappers = []string{}
-
-var BootstrapPeers []peer.AddrInfo
-
-func init() {
-	for _, bsp := range bootstrappers {
-		ma, err := multiaddr.NewMultiaddr(bsp)
-		if err != nil {
-			log.Errorf("failed to parse bootstrap address: ", err)
-			continue
-		}
-
-		ai, err := peer.AddrInfoFromP2pAddr(ma)
-		if err != nil {
-			log.Errorf("failed to create address info: ", err)
-			continue
-		}
-
-		BootstrapPeers = append(BootstrapPeers, *ai)
-	}
-}
 
 type Node struct {
 	Dht    *dht.IpfsDHT
@@ -140,6 +119,24 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	fmt.Println("swarm listen on: ")
 	for _, addr := range cfg.ListenAddrs {
 		fmt.Printf("%s\n", addr)
+	}
+
+	var BootstrapPeers []peer.AddrInfo
+
+	for _, bsp := range cfg.Bootstrappers {
+		ma, err := multiaddr.NewMultiaddr(bsp)
+		if err != nil {
+			log.Errorf("failed to parse bootstrap address: ", err)
+			continue
+		}
+
+		ai, err := peer.AddrInfoFromP2pAddr(ma)
+		if err != nil {
+			log.Errorf("failed to create address info: ", err)
+			continue
+		}
+
+		BootstrapPeers = append(BootstrapPeers, *ai)
 	}
 
 	dhtopts := fullrt.DHTOption(

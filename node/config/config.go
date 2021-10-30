@@ -34,6 +34,7 @@ type Config struct {
 	Identity      Identity `json:"identity"`
 	ListenAddrs   []string `json:"listen_addrs"`
 	AnnounceAddrs []string `json:"announce_addrs"`
+	Bootstrappers []string `json:"bootstrappers"`
 
 	Datastore     string  `json:"datastore"`
 	DSClusterConf string  `json:"ds_cluster_conf"`
@@ -60,6 +61,8 @@ func LoadOrInitConfig(path string) (*Config, error) {
 				Port: filehelper.RandPort(),
 				Root: defaultJSONRPCRoot,
 			},
+			AnnounceAddrs: make([]string, 0),
+			Bootstrappers: make([]string, 0),
 		}
 
 		priv, _, err := crypto.GenerateEd25519Key(rand.Reader)
