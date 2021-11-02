@@ -28,7 +28,11 @@ func (a *DagAPI) DagStat(ctx context.Context, cid cid.Cid) (*format.NodeStat, er
 	return stat, nil
 }
 
-func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid) (chan string, error) {
+func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan string, error) {
+	var concurOption merkledag.WalkOption = merkledag.Concurrent()
+	if concur > 32 {
+		concurOption = merkledag.Concurrency(concur)
+	}
 	out := make(chan string)
 	dagServ := merkledag.NewDAGService(blockservice.New(a.Node.Blockstore, a.Node.Bitswap))
 	go func() {
@@ -37,7 +41,7 @@ func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid) (chan string, erro
 			err = merkledag.Walk(ctx, dagServ.GetLinks, cc, func(cid cid.Cid) bool {
 				out <- cid.String()
 				return true
-			}, merkledag.Concurrent(), merkledag.OnError(func(c cid.Cid, err error) error {
+			}, concurOption, merkledag.OnError(func(c cid.Cid, err error) error {
 				if err != nil {
 					out <- fmt.Sprintf("Error: %s, %s", c, err)
 				}

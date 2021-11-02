@@ -32,7 +32,7 @@ type Net interface {
 
 type Dag interface {
 	DagStat(context.Context, cid.Cid) (*format.NodeStat, error)
-	DagSync(context.Context, []cid.Cid) (chan string, error)
+	DagSync(context.Context, []cid.Cid, int) (chan string, error)
 }
 
 type FullNode interface {
@@ -50,7 +50,7 @@ type FullNodeClient struct {
 
 	ID      func(context.Context) (peer.ID, error)
 	DagStat func(context.Context, cid.Cid) (*format.NodeStat, error)
-	DagSync func(context.Context, []cid.Cid) (chan string, error)
+	DagSync func(context.Context, []cid.Cid, int) (chan string, error)
 	Add     func(context.Context, string) ([]cid.Cid, error)
 	Get     func(context.Context, cid.Cid, string) (chan PBar, error)
 }
@@ -87,8 +87,8 @@ func (a *FullNodeClientApi) DagStat(ctx context.Context, cid cid.Cid) (*format.N
 	return a.Emb.DagStat(ctx, cid)
 }
 
-func (a *FullNodeClientApi) DagSync(ctx context.Context, cids []cid.Cid) (chan string, error) {
-	return a.Emb.DagSync(ctx, cids)
+func (a *FullNodeClientApi) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan string, error) {
+	return a.Emb.DagSync(ctx, cids, concur)
 }
 
 func (a *FullNodeClientApi) Add(ctx context.Context, path string) ([]cid.Cid, error) {

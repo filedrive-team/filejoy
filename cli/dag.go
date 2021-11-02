@@ -47,7 +47,14 @@ var DagStat = &cli.Command{
 var DagSync = &cli.Command{
 	Name:  "sync",
 	Usage: "sync dags",
-	Flags: []cli.Flag{},
+	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:    "concurrent",
+			Aliases: []string{"c"},
+			Usage:   "",
+			Value:   32,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
 		args := cctx.Args().Slice()
@@ -66,7 +73,7 @@ var DagSync = &cli.Command{
 		}
 		defer closer()
 
-		msgch, err := api.DagSync(ctx, cids)
+		msgch, err := api.DagSync(ctx, cids, cctx.Int("concurrent"))
 		if err != nil {
 			return err
 		}
