@@ -35,6 +35,7 @@ require (
 	github.com/libp2p/go-libp2p-swarm v0.5.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/multiformats/go-multiaddr v0.4.1
+	github.com/pierrec/lz4/v4 v4.1.10
 	github.com/schollz/progressbar/v3 v3.8.3
 	github.com/urfave/cli/v2 v2.3.0
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect

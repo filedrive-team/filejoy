@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -45,6 +46,9 @@ func (a *CommonAPI) Get(ctx context.Context, cid cid.Cid, path string) (chan api
 	}
 	fdr, err := ufsio.NewDagReader(ctx, dagNode, a.Node.Dagserv)
 	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, err
 	}
 	f, err := os.Create(path)
