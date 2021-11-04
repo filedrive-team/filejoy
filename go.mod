@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
+	github.com/filecoin-project/go-padreader v0.0.1
 	github.com/filedrive-team/filehelper v0.0.6
 	github.com/filedrive-team/go-ds-cluster v0.0.6-0.20211029051144-10c8cf554437
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
@@ -22,7 +23,8 @@ require (
 	github.com/ipfs/go-merkledag v0.4.1
 	github.com/ipfs/go-peertaskqueue v0.6.0 // indirect
 	github.com/ipfs/go-unixfs v0.2.6
-	github.com/ipld/go-ipld-prime v0.12.3 // indirect
+	github.com/ipld/go-car v0.3.1
+	github.com/ipld/go-ipld-prime v0.12.3
 	github.com/kr/text v0.2.0 // indirect
 	github.com/libp2p/go-libp2p v0.15.1
 	github.com/libp2p/go-libp2p-connmgr v0.2.4

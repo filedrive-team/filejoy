@@ -1,6 +1,10 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
 	"github.com/schollz/progressbar/v3"
@@ -22,18 +26,22 @@ var GetCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		tp, err := homedir.Expand(args[1])
+		p, err := homedir.Expand(args[1])
 		if err != nil {
 			return err
 		}
-
+		if !strings.HasPrefix(p, "/") {
+			if dir, err := os.Getwd(); err == nil {
+				p = filepath.Join(dir, p)
+			}
+		}
 		api, closer, err := GetAPI(cctx)
 		if err != nil {
 			return err
 		}
 		defer closer()
 
-		pb, err := api.Get(ctx, cid, tp)
+		pb, err := api.Get(ctx, cid, p)
 		if err != nil {
 			return err
 		}
