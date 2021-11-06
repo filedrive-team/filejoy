@@ -82,6 +82,11 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		libp2p.Identity(peerkey),
 		libp2p.BandwidthReporter(bwc),
 		libp2p.DefaultTransports,
+		libp2p.EnableNATService(),
+	}
+	if cfg.Relay {
+		opts = append(opts, libp2p.DefaultEnableRelay)
+		opts = append(opts, libp2p.EnableAutoRelay())
 	}
 
 	if len(cfg.AnnounceAddrs) > 0 {

@@ -39,6 +39,7 @@ type Config struct {
 	Datastore     string  `json:"datastore"`
 	DSClusterConf string  `json:"ds_cluster_conf"`
 	RPC           JSONRPC `json:"rpc"`
+	Relay         bool    `json:"relay"`
 }
 
 func LoadOrInitConfig(path string) (*Config, error) {
