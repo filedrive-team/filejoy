@@ -9,6 +9,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 var GetCmd = &cli.Command{
@@ -70,8 +71,7 @@ var GetCmd = &cli.Command{
 			}
 			count++
 			if item.Err != "" {
-				log.Error(item.Err)
-				return nil
+				return xerrors.New(item.Err)
 			}
 			bar.Set64(item.Current)
 		}

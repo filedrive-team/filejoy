@@ -65,10 +65,42 @@ var SyncssCmd = &cli.Command{
 			return err
 		}
 		defer closer()
-		log.Info("loading snapshot file")
-		if _, err := api.Get(ctx, sscid, ssfn); err != nil {
-			return err
+		log.Infof("loading snapshot file to %s", ssfn)
+		{
+			pb, err := api.Get(ctx, sscid, ssfn)
+			if err != nil {
+				return err
+			}
+			var bar *progressbar.ProgressBar
+
+			count := 0
+			for item := range pb {
+				if count == 0 {
+					bar = progressbar.NewOptions(int(item.Total),
+						progressbar.OptionEnableColorCodes(true),
+						progressbar.OptionShowBytes(true),
+						progressbar.OptionSetWidth(50),
+						progressbar.OptionSetDescription("[cyan][reset] Writing ..."),
+						progressbar.OptionSetTheme(progressbar.Theme{
+							Saucer:        "[green]=[reset]",
+							SaucerHead:    "[green]>[reset]",
+							SaucerPadding: " ",
+							BarStart:      "[",
+							BarEnd:        "]",
+						}),
+						progressbar.OptionOnCompletion(func() {
+
+						}),
+					)
+				}
+				count++
+				if item.Err != "" {
+					return xerrors.Errorf(item.Err)
+				}
+				bar.Set64(item.Current)
+			}
 		}
+
 		f, err := os.Open(ssfn)
 		if err != nil {
 			return err
@@ -79,6 +111,7 @@ var SyncssCmd = &cli.Command{
 		for {
 			line, err := sr.ReadString('\n')
 			if err != nil {
+				log.Error(err)
 				break
 			}
 			log.Info(line)
@@ -142,8 +175,7 @@ var SyncssCmd = &cli.Command{
 				}
 				count++
 				if item.Err != "" {
-					log.Error(item.Err)
-					return nil
+					return xerrors.Errorf(item.Err)
 				}
 				bar.Set64(item.Current)
 			}
