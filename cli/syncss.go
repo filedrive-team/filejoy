@@ -131,6 +131,7 @@ var SyncssCmd = &cli.Command{
 					fmt.Printf("%s: %s\n", fcid, err)
 					errLine++
 				}
+				fmt.Printf("sum: %d; has: %d; not has: %d\n", totalLine, checkedLine, errLine)
 				continue
 			}
 			if onlyDag {
