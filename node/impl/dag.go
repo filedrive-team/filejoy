@@ -27,6 +27,10 @@ type DagAPI struct {
 	Node *node.Node
 }
 
+func (a *DagAPI) DagHas(ctx context.Context, cid cid.Cid) (bool, error) {
+	return a.Node.Blockstore.Has(cid)
+}
+
 func (a *DagAPI) DagStat(ctx context.Context, cid cid.Cid) (*format.NodeStat, error) {
 	dagServ := merkledag.NewDAGService(blockservice.New(a.Node.Blockstore, a.Node.Bitswap))
 	dagNode, err := dagServ.Get(ctx, cid)

@@ -125,14 +125,12 @@ var SyncssCmd = &cli.Command{
 			}
 			if onlyCheck {
 				totalLine++
-				if info, err := api.DagStat(ctx, fcid); err == nil {
-					fmt.Printf("%s: csize: %d, bsize: %d, link num: %d\n", info.Hash, info.CumulativeSize, info.BlockSize, info.NumLinks)
+				if has, err := api.DagHas(ctx, fcid); has {
 					checkedLine++
 				} else {
 					fmt.Printf("%s: %s\n", fcid, err)
 					errLine++
 				}
-
 				continue
 			}
 			if onlyDag {

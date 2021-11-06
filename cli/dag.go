@@ -19,6 +19,39 @@ var DagCmd = &cli.Command{
 		DagStat,
 		DagSync,
 		DagExport,
+		DagHas,
+	},
+}
+
+var DagHas = &cli.Command{
+	Name:  "has",
+	Usage: "check if local block store has dag",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+
+		cid, err := cid.Decode(cctx.Args().First())
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := GetAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		has, err := api.DagHas(ctx, cid)
+		if err != nil {
+			return err
+		}
+		if has {
+			fmt.Printf("has %s\n", cid)
+		} else {
+			fmt.Printf("hasn't %s\n", cid)
+		}
+
+		return nil
 	},
 }
 

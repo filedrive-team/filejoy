@@ -34,6 +34,7 @@ type Dag interface {
 	DagStat(context.Context, cid.Cid) (*format.NodeStat, error)
 	DagSync(context.Context, []cid.Cid, int) (chan string, error)
 	DagExport(context.Context, cid.Cid, string, bool) (chan PBar, error)
+	DagHas(context.Context, cid.Cid) (bool, error)
 }
 
 type FullNode interface {
@@ -53,6 +54,7 @@ type FullNodeClient struct {
 	DagStat   func(context.Context, cid.Cid) (*format.NodeStat, error)
 	DagSync   func(context.Context, []cid.Cid, int) (chan string, error)
 	DagExport func(context.Context, cid.Cid, string, bool) (chan PBar, error)
+	DagHas    func(context.Context, cid.Cid) (bool, error)
 	Add       func(context.Context, string) ([]cid.Cid, error)
 	Get       func(context.Context, cid.Cid, string) (chan PBar, error)
 }
@@ -95,6 +97,10 @@ func (a *FullNodeClientApi) DagSync(ctx context.Context, cids []cid.Cid, concur 
 
 func (a *FullNodeClientApi) DagExport(ctx context.Context, cid cid.Cid, path string, pad bool) (chan PBar, error) {
 	return a.Emb.DagExport(ctx, cid, path, pad)
+}
+
+func (a *FullNodeClientApi) DagHas(ctx context.Context, cid cid.Cid) (bool, error) {
+	return a.Emb.DagHas(ctx, cid)
 }
 
 func (a *FullNodeClientApi) Add(ctx context.Context, path string) ([]cid.Cid, error) {
