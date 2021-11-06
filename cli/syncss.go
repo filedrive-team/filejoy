@@ -25,11 +25,19 @@ var SyncssCmd = &cli.Command{
 			Usage:   "",
 			Value:   false,
 		},
+		&cli.BoolFlag{
+			Name:    "only-check",
+			Aliases: []string{"oc"},
+			Usage:   "",
+			Value:   false,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
+		onlyDag := cctx.Bool("only-dag")
+		onlyCheck := cctx.Bool("only-check")
 		args := cctx.Args().Slice()
-		if len(args) < 2 {
+		if len(args) < 2 && !(onlyCheck || onlyDag) {
 			log.Info("usage: filejoy syncss [snapshot-cid] [target-path]")
 			return nil
 		}
@@ -62,7 +70,7 @@ var SyncssCmd = &cli.Command{
 			return err
 		}
 		defer f.Close()
-		onlyDag := cctx.Bool("only-dag")
+		var totalLine, checkedLine, errLine int
 		sr := bufio.NewReader(lz4.NewReader(f))
 		for {
 			line, err := sr.ReadString('\n')
@@ -77,6 +85,18 @@ var SyncssCmd = &cli.Command{
 			fcid, err := cid.Decode(arr[1])
 			if err != nil {
 				return err
+			}
+			if onlyCheck {
+				totalLine++
+				if info, err := api.DagStat(ctx, fcid); err == nil {
+					fmt.Printf("%s: csize: %d, bsize: %d, link num: %d\n", info.Hash, info.CumulativeSize, info.BlockSize, info.NumLinks)
+					checkedLine++
+				} else {
+					fmt.Printf("%s: %s\n", fcid, err)
+					errLine++
+				}
+
+				continue
 			}
 			if onlyDag {
 				info, err := api.DagSync(ctx, []cid.Cid{fcid}, 32)
@@ -123,6 +143,11 @@ var SyncssCmd = &cli.Command{
 				}
 				bar.Set64(item.Current)
 			}
+		}
+		if onlyCheck {
+			fmt.Printf("total: %d\n", totalLine)
+			fmt.Printf("checked: %d\n", checkedLine)
+			fmt.Printf("err: %d\n", errLine)
 		}
 
 		return nil
