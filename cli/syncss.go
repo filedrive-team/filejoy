@@ -41,9 +41,13 @@ var SyncssCmd = &cli.Command{
 			log.Info("usage: filejoy syncss [snapshot-cid] [target-path]")
 			return nil
 		}
-		p, err := homedir.Expand(args[1])
-		if err != nil {
-			return err
+		var p string
+		var err error
+		if len(args) > 1 {
+			p, err = homedir.Expand(args[1])
+			if err != nil {
+				return err
+			}
 		}
 		if !strings.HasPrefix(p, "/") {
 			if dir, err := os.Getwd(); err == nil {
