@@ -23,12 +23,14 @@ import (
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipfs/go-merkledag"
 	"github.com/libp2p/go-libp2p"
+	circuit "github.com/libp2p/go-libp2p-circuit"
 	connmgr "github.com/libp2p/go-libp2p-connmgr"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	metrics "github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/pnet"
+	"github.com/libp2p/go-libp2p-core/routing"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
 	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
@@ -73,6 +75,8 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		return nil, err
 	}
 
+	var ipfsdht *dht.IpfsDHT
+
 	bwc := metrics.NewBandwidthCounter()
 
 	opts := []libp2p.Option{
@@ -83,9 +87,17 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		libp2p.BandwidthReporter(bwc),
 		libp2p.DefaultTransports,
 		libp2p.EnableNATService(),
+		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
+			ipfsdht, err = dht.New(ctx, h, dht.Datastore(lds))
+			if err != nil {
+				return nil, xerrors.Errorf("constructing dht: %w", err)
+			}
+			return ipfsdht, nil
+		}),
 	}
 	if cfg.Relay {
 		opts = append(opts, libp2p.DefaultEnableRelay)
+		opts = append(opts, libp2p.EnableRelay(circuit.OptActive, circuit.OptHop))
 		opts = append(opts, libp2p.EnableAutoRelay())
 	}
 
@@ -156,11 +168,6 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		return nil, xerrors.Errorf("constructing fullrt: %w", err)
 	}
 
-	ipfsdht, err := dht.New(ctx, h, dht.Datastore(lds))
-	if err != nil {
-		return nil, xerrors.Errorf("constructing dht: %w", err)
-	}
-
 	dcfg, err := dsccfg.ReadConfig(filepath.Join(repoPath, cfg.DSClusterConf))
 	if err != nil {
 		return nil, err
@@ -195,10 +202,9 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		FullRT:     frt,
 		Host:       h,
 		Blockstore: blkst,
-		//Lmdb:       lmdbs,
-		Datastore: lds,
-		Bitswap:   bswap.(*bitswap.Bitswap),
-		Dagserv:   dagServ,
-		Config:    cfg,
+		Datastore:  lds,
+		Bitswap:    bswap.(*bitswap.Bitswap),
+		Dagserv:    dagServ,
+		Config:     cfg,
 	}, nil
 }
