@@ -14,9 +14,12 @@ type PBar struct {
 	Current int64
 	Err     string
 }
-
+type PBarMsg struct {
+	Pb  PBar
+	Msg string
+}
 type Common interface {
-	Add(context.Context, string) ([]cid.Cid, error)
+	Add(context.Context, string) (chan PBarMsg, error)
 	Get(context.Context, cid.Cid, string) (chan PBar, error)
 }
 
@@ -55,7 +58,7 @@ type FullNodeClient struct {
 	DagSync   func(context.Context, []cid.Cid, int) (chan string, error)
 	DagExport func(context.Context, cid.Cid, string, bool) (chan PBar, error)
 	DagHas    func(context.Context, cid.Cid) (bool, error)
-	Add       func(context.Context, string) ([]cid.Cid, error)
+	Add       func(context.Context, string) (chan PBarMsg, error)
 	Get       func(context.Context, cid.Cid, string) (chan PBar, error)
 }
 
@@ -103,7 +106,7 @@ func (a *FullNodeClientApi) DagHas(ctx context.Context, cid cid.Cid) (bool, erro
 	return a.Emb.DagHas(ctx, cid)
 }
 
-func (a *FullNodeClientApi) Add(ctx context.Context, path string) ([]cid.Cid, error) {
+func (a *FullNodeClientApi) Add(ctx context.Context, path string) (chan PBarMsg, error) {
 	return a.Emb.Add(ctx, path)
 }
 

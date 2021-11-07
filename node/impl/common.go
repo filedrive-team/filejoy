@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,29 +15,98 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-merkledag"
 	ufsio "github.com/ipfs/go-unixfs/io"
+	"golang.org/x/xerrors"
 )
 
 type CommonAPI struct {
 	Node *node.Node
 }
 
-func (a *CommonAPI) Add(ctx context.Context, path string) ([]cid.Cid, error) {
+func (a *CommonAPI) Add(ctx context.Context, path string) (chan api.PBarMsg, error) {
 	// cidbuilder
 	cidBuilder, err := merkledag.PrefixForCidVersion(0)
 	if err != nil {
 		return nil, err
 	}
-
-	files := filehelper.FileWalkAsync([]string{path})
-	res := make([]cid.Cid, len(files))
-	for item := range files {
-		fileNode, err := filehelper.BuildFileNode(item, a.Node.Dagserv, cidBuilder)
-		if err != nil {
-			return nil, err
-		}
-		res = append(res, fileNode.Cid())
+	finfo, err := os.Stat(path)
+	if err != nil {
+		return nil, err
 	}
-	return res, nil
+	if finfo.IsDir() {
+		return nil, xerrors.Errorf("%s is dir, add only works on file", path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	pb := &pbar{
+		Total: finfo.Size(),
+	}
+	iodone := make(chan struct{})
+	ioerr := make(chan error)
+	out := make(chan api.PBarMsg)
+
+	go func(p chan api.PBarMsg, iodone chan struct{}, ioerr chan error) {
+		defer close(out)
+		tic := time.NewTicker(time.Millisecond * 50)
+		for {
+			select {
+			case <-ctx.Done():
+				out <- api.PBarMsg{
+					Pb: api.PBar{
+						Total:   pb.Total,
+						Current: pb.Current,
+						Err:     ctx.Err().Error(),
+					},
+				}
+				return
+			case <-iodone:
+				return
+			case <-ioerr:
+				return
+			case <-tic.C:
+				if pb.Done() {
+					out <- api.PBarMsg{
+						Pb: api.PBar{
+							Total:   pb.Total,
+							Current: pb.Current,
+						},
+					}
+				} else {
+					out <- api.PBarMsg{
+						Pb: api.PBar{
+							Total:   pb.Total,
+							Current: pb.Current,
+						},
+					}
+				}
+			}
+		}
+	}(out, iodone, ioerr)
+	go func(iodone chan struct{}, ioerr chan error) {
+		nd, err := filehelper.BalanceNode(io.TeeReader(f, pb), a.Node.Dagserv, cidBuilder)
+		if err != nil {
+			ioerr <- err
+			out <- api.PBarMsg{
+				Pb: api.PBar{
+					Total:   pb.Total,
+					Current: pb.Current,
+					Err:     err.Error(),
+				},
+				Msg: fmt.Sprintf("Add Failed: %s", err),
+			}
+			return
+		}
+		out <- api.PBarMsg{
+			Pb: api.PBar{
+				Total:   pb.Total,
+				Current: pb.Total,
+			},
+			Msg: fmt.Sprintf("Add Success: %s", nd.Cid()),
+		}
+		iodone <- struct{}{}
+	}(iodone, ioerr)
+	return out, err
 }
 
 func (a *CommonAPI) Get(ctx context.Context, cid cid.Cid, path string) (chan api.PBar, error) {
