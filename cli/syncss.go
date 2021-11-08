@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +11,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pierrec/lz4/v4"
-	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
@@ -71,33 +71,8 @@ var SyncssCmd = &cli.Command{
 			if err != nil {
 				return err
 			}
-			var bar *progressbar.ProgressBar
-
-			count := 0
-			for item := range pb {
-				if count == 0 {
-					bar = progressbar.NewOptions(int(item.Total),
-						progressbar.OptionEnableColorCodes(true),
-						progressbar.OptionShowBytes(true),
-						progressbar.OptionSetWidth(50),
-						progressbar.OptionSetDescription("[cyan][reset] Writing ..."),
-						progressbar.OptionSetTheme(progressbar.Theme{
-							Saucer:        "[green]=[reset]",
-							SaucerHead:    "[green]>[reset]",
-							SaucerPadding: " ",
-							BarStart:      "[",
-							BarEnd:        "]",
-						}),
-						progressbar.OptionOnCompletion(func() {
-
-						}),
-					)
-				}
-				count++
-				if item.Err != "" {
-					return xerrors.Errorf(item.Err)
-				}
-				bar.Set64(item.Current)
+			if err := PrintProgress(pb); err != nil {
+				return err
 			}
 		}
 
@@ -111,7 +86,11 @@ var SyncssCmd = &cli.Command{
 		for {
 			line, err := sr.ReadString('\n')
 			if err != nil {
-				log.Error(err)
+				if err == io.EOF {
+					fmt.Println("finished sync")
+				} else {
+					log.Error(err)
+				}
 				break
 			}
 			log.Info(line)
