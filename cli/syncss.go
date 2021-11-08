@@ -150,33 +150,8 @@ var SyncssCmd = &cli.Command{
 				return err
 			}
 
-			var bar *progressbar.ProgressBar
-
-			count := 0
-			for item := range pb {
-				if count == 0 {
-					bar = progressbar.NewOptions(int(item.Total),
-						progressbar.OptionEnableColorCodes(true),
-						progressbar.OptionShowBytes(true),
-						progressbar.OptionSetWidth(50),
-						progressbar.OptionSetDescription("[cyan][reset] Writing ..."),
-						progressbar.OptionSetTheme(progressbar.Theme{
-							Saucer:        "[green]=[reset]",
-							SaucerHead:    "[green]>[reset]",
-							SaucerPadding: " ",
-							BarStart:      "[",
-							BarEnd:        "]",
-						}),
-						progressbar.OptionOnCompletion(func() {
-
-						}),
-					)
-				}
-				count++
-				if item.Err != "" {
-					return xerrors.Errorf(item.Err)
-				}
-				bar.Set64(item.Current)
+			if err = PrintProgress(pb); err != nil {
+				return err
 			}
 		}
 		if onlyCheck {

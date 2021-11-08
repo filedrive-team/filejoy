@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/filedrive-team/filehelper"
@@ -22,7 +21,7 @@ type CommonAPI struct {
 	Node *node.Node
 }
 
-func (a *CommonAPI) Add(ctx context.Context, path string) (chan api.PBarMsg, error) {
+func (a *CommonAPI) Add(ctx context.Context, path string) (chan api.PBar, error) {
 	// cidbuilder
 	cidBuilder, err := merkledag.PrefixForCidVersion(0)
 	if err != nil {
@@ -44,20 +43,18 @@ func (a *CommonAPI) Add(ctx context.Context, path string) (chan api.PBarMsg, err
 	}
 	iodone := make(chan struct{})
 	ioerr := make(chan error)
-	out := make(chan api.PBarMsg)
+	out := make(chan api.PBar)
 
-	go func(p chan api.PBarMsg, iodone chan struct{}, ioerr chan error) {
+	go func(p chan api.PBar, iodone chan struct{}, ioerr chan error) {
 		defer close(out)
 		tic := time.NewTicker(time.Millisecond * 50)
 		for {
 			select {
 			case <-ctx.Done():
-				out <- api.PBarMsg{
-					Pb: api.PBar{
-						Total:   pb.Total,
-						Current: pb.Current,
-						Err:     ctx.Err().Error(),
-					},
+				out <- api.PBar{
+					Total:   pb.Total,
+					Current: pb.Current,
+					Err:     ctx.Err().Error(),
 				}
 				return
 			case <-iodone:
@@ -66,18 +63,14 @@ func (a *CommonAPI) Add(ctx context.Context, path string) (chan api.PBarMsg, err
 				return
 			case <-tic.C:
 				if pb.Done() {
-					out <- api.PBarMsg{
-						Pb: api.PBar{
-							Total:   pb.Total,
-							Current: pb.Current,
-						},
+					out <- api.PBar{
+						Total:   pb.Total,
+						Current: pb.Current,
 					}
 				} else {
-					out <- api.PBarMsg{
-						Pb: api.PBar{
-							Total:   pb.Total,
-							Current: pb.Current,
-						},
+					out <- api.PBar{
+						Total:   pb.Total,
+						Current: pb.Current,
 					}
 				}
 			}
@@ -87,22 +80,18 @@ func (a *CommonAPI) Add(ctx context.Context, path string) (chan api.PBarMsg, err
 		nd, err := filehelper.BalanceNode(io.TeeReader(f, pb), a.Node.Dagserv, cidBuilder)
 		if err != nil {
 			ioerr <- err
-			out <- api.PBarMsg{
-				Pb: api.PBar{
-					Total:   pb.Total,
-					Current: pb.Current,
-					Err:     err.Error(),
-				},
-				Msg: fmt.Sprintf("Add Failed: %s", err),
+			out <- api.PBar{
+				Total:   pb.Total,
+				Current: pb.Current,
+				Err:     err.Error(),
+				Msg:     fmt.Sprintf("Add Failed: %s", err),
 			}
 			return
 		}
-		out <- api.PBarMsg{
-			Pb: api.PBar{
-				Total:   pb.Total,
-				Current: pb.Total,
-			},
-			Msg: fmt.Sprintf("Add Success: %s", nd.Cid()),
+		out <- api.PBar{
+			Total:   pb.Total,
+			Current: pb.Total,
+			Msg:     fmt.Sprintf("Add Success: %s", nd.Cid()),
 		}
 		iodone <- struct{}{}
 	}(iodone, ioerr)
@@ -132,13 +121,9 @@ func (a *CommonAPI) Get(ctx context.Context, cid cid.Cid, path string) (chan api
 	iodone := make(chan struct{})
 	ioerr := make(chan error)
 	out := make(chan api.PBar)
-	closeOut := sync.Once{}
-	closefunc := func() {
-		closeOut.Do(func() {
-			close(out)
-		})
-	}
+
 	go func(p chan api.PBar, iodone chan struct{}, ioerr chan error) {
+		defer close(out)
 		tic := time.NewTicker(time.Millisecond * 50)
 		for {
 			select {
@@ -148,14 +133,12 @@ func (a *CommonAPI) Get(ctx context.Context, cid cid.Cid, path string) (chan api
 					Current: pb.Current,
 					Err:     ctx.Err().Error(),
 				}
-				closefunc()
 				return
 			case <-iodone:
 				out <- api.PBar{
 					Total:   pb.Total,
 					Current: pb.Total,
 				}
-				closefunc()
 				return
 			case e := <-ioerr:
 				out <- api.PBar{
@@ -163,7 +146,7 @@ func (a *CommonAPI) Get(ctx context.Context, cid cid.Cid, path string) (chan api
 					Current: pb.Current,
 					Err:     e.Error(),
 				}
-				closefunc()
+				return
 			case <-tic.C:
 				if pb.Done() {
 					out <- api.PBar{
