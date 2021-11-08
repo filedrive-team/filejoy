@@ -23,6 +23,7 @@ var log = logging.Logger("filejoy-cli")
 
 var Commands = []*cli.Command{
 	AddCmd,
+	Add2Cmd,
 	GetCmd,
 	SyncssCmd,
 	WithCategory("network", NetCmd),

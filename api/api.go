@@ -18,6 +18,7 @@ type PBar struct {
 
 type Common interface {
 	Add(context.Context, string) (chan PBar, error)
+	Add2(context.Context, string) (chan PBar, error)
 	Get(context.Context, cid.Cid, string) (chan PBar, error)
 }
 
@@ -57,6 +58,7 @@ type FullNodeClient struct {
 	DagExport func(context.Context, cid.Cid, string, bool) (chan PBar, error)
 	DagHas    func(context.Context, cid.Cid) (bool, error)
 	Add       func(context.Context, string) (chan PBar, error)
+	Add2      func(context.Context, string) (chan PBar, error)
 	Get       func(context.Context, cid.Cid, string) (chan PBar, error)
 }
 
@@ -105,6 +107,10 @@ func (a *FullNodeClientApi) DagHas(ctx context.Context, cid cid.Cid) (bool, erro
 }
 
 func (a *FullNodeClientApi) Add(ctx context.Context, path string) (chan PBar, error) {
+	return a.Emb.Add(ctx, path)
+}
+
+func (a *FullNodeClientApi) Add2(ctx context.Context, path string) (chan PBar, error) {
 	return a.Emb.Add(ctx, path)
 }
 

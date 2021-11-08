@@ -31,3 +31,30 @@ var AddCmd = &cli.Command{
 
 	},
 }
+
+var Add2Cmd = &cli.Command{
+	Name:  "add2",
+	Usage: "add files",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+
+		tp, err := homedir.Expand(cctx.Args().First())
+		if err != nil {
+			return err
+		}
+
+		api, closer, err := GetAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		pb, err := api.Add2(ctx, tp)
+		if err != nil {
+			return err
+		}
+		return PrintProgress(pb)
+
+	},
+}

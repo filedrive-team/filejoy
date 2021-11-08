@@ -191,3 +191,80 @@ func (pb *pbar) Write(p []byte) (n int, err error) {
 func (pb *pbar) Done() bool {
 	return pb.Current >= pb.Total
 }
+
+func (a *CommonAPI) Add2(ctx context.Context, path string) (chan api.PBar, error) {
+	// cidbuilder
+	cidBuilder, err := merkledag.PrefixForCidVersion(0)
+	if err != nil {
+		return nil, err
+	}
+	finfo, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if finfo.IsDir() {
+		return nil, xerrors.Errorf("%s is dir, add only works on file", path)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	pb := &pbar{
+		Total: finfo.Size(),
+	}
+	iodone := make(chan struct{})
+	ioerr := make(chan error)
+	out := make(chan api.PBar)
+
+	go func(p chan api.PBar, iodone chan struct{}, ioerr chan error) {
+		defer close(out)
+		tic := time.NewTicker(time.Millisecond * 50)
+		for {
+			select {
+			case <-ctx.Done():
+				out <- api.PBar{
+					Total:   pb.Total,
+					Current: pb.Current,
+					Err:     ctx.Err().Error(),
+				}
+				return
+			case <-iodone:
+				return
+			case <-ioerr:
+				return
+			case <-tic.C:
+				if pb.Done() {
+					out <- api.PBar{
+						Total:   pb.Total,
+						Current: pb.Current,
+					}
+				} else {
+					out <- api.PBar{
+						Total:   pb.Total,
+						Current: pb.Current,
+					}
+				}
+			}
+		}
+	}(out, iodone, ioerr)
+	go func(iodone chan struct{}, ioerr chan error) {
+		ndcid, err := BalanceNode(ctx, io.TeeReader(f, pb), a.Node.Dagserv, cidBuilder)
+		if err != nil {
+			ioerr <- err
+			out <- api.PBar{
+				Total:   pb.Total,
+				Current: pb.Current,
+				Err:     err.Error(),
+				Msg:     fmt.Sprintf("Add Failed: %s", err),
+			}
+			return
+		}
+		out <- api.PBar{
+			Total:   pb.Total,
+			Current: pb.Total,
+			Msg:     fmt.Sprintf("Add Success: %s", ndcid),
+		}
+		iodone <- struct{}{}
+	}(iodone, ioerr)
+	return out, err
+}
