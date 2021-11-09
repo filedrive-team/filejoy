@@ -32,12 +32,6 @@ var SyncssCmd = &cli.Command{
 			Value:   false,
 		},
 		&cli.BoolFlag{
-			Name:    "only-check",
-			Aliases: []string{"oc"},
-			Usage:   "",
-			Value:   false,
-		},
-		&cli.BoolFlag{
 			Name:    "save-snapshot",
 			Aliases: []string{"ss"},
 			Usage:   "",
@@ -80,16 +74,7 @@ var SyncssCmd = &cli.Command{
 			return err
 		}
 		defer closer()
-		if cctx.Bool("save-snapshot") {
-			pb, err := api.Get(ctx, sscid, args[0]+".txt")
-			if err != nil {
-				return err
-			}
-			if err := PrintProgress(pb); err != nil {
-				return err
-			}
-			return nil
-		}
+
 		var totalLine, checkedLine, errLine int
 		var sr *bufio.Reader
 		fromFileList := cctx.String("file-list")
@@ -120,7 +105,23 @@ var SyncssCmd = &cli.Command{
 				return err
 			}
 			defer f.Close()
-			sr = bufio.NewReader(lz4.NewReader(f))
+			var iorder io.Reader
+			if cctx.Bool("save-snapshot") {
+				cw, err := os.Getwd()
+				if err != nil {
+					return err
+				}
+				targetpath := filepath.Join(cw, args[0]+".txt")
+				sf, err := os.Create(targetpath)
+				if err != nil {
+					return err
+				}
+				defer sf.Close()
+				iorder = io.TeeReader(lz4.NewReader(f), sf)
+			} else {
+				iorder = lz4.NewReader(f)
+			}
+			sr = bufio.NewReader(iorder)
 		}
 
 		for {
