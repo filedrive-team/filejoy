@@ -31,6 +31,23 @@ var SyncssCmd = &cli.Command{
 			Usage:   "",
 			Value:   false,
 		},
+		&cli.BoolFlag{
+			Name:    "only-check",
+			Aliases: []string{"oc"},
+			Usage:   "",
+			Value:   false,
+		},
+		&cli.BoolFlag{
+			Name:    "save-snapshot",
+			Aliases: []string{"ss"},
+			Usage:   "",
+			Value:   false,
+		},
+		&cli.StringFlag{
+			Name:    "file-list",
+			Aliases: []string{"fl"},
+			Usage:   "sync directly from lists in the text file",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
@@ -58,31 +75,54 @@ var SyncssCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		// write snapshot to tmp file
-		ssfn := filepath.Join(os.TempDir(), args[0])
 		api, closer, err := GetAPI(cctx)
 		if err != nil {
 			return err
 		}
 		defer closer()
-		log.Infof("loading snapshot file to %s", ssfn)
-		{
-			pb, err := api.Get(ctx, sscid, ssfn)
+		if cctx.Bool("save-snapshot") {
+			pb, err := api.Get(ctx, sscid, args[0]+".txt")
 			if err != nil {
 				return err
 			}
 			if err := PrintProgress(pb); err != nil {
 				return err
 			}
+			return nil
+		}
+		var totalLine, checkedLine, errLine int
+		var sr *bufio.Reader
+		fromFileList := cctx.String("file-list")
+		if fromFileList != "" {
+			f, err := os.Open(fromFileList)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			sr = bufio.NewReader(f)
+		} else {
+			// write snapshot to tmp file
+			ssfn := filepath.Join(os.TempDir(), args[0])
+
+			log.Infof("loading snapshot file to %s", ssfn)
+			{
+				pb, err := api.Get(ctx, sscid, ssfn)
+				if err != nil {
+					return err
+				}
+				if err := PrintProgress(pb); err != nil {
+					return err
+				}
+			}
+
+			f, err := os.Open(ssfn)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			sr = bufio.NewReader(lz4.NewReader(f))
 		}
 
-		f, err := os.Open(ssfn)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		var totalLine, checkedLine, errLine int
-		sr := bufio.NewReader(lz4.NewReader(f))
 		for {
 			line, err := sr.ReadString('\n')
 			if err != nil {
@@ -94,9 +134,9 @@ var SyncssCmd = &cli.Command{
 				break
 			}
 			log.Info(line)
-			arr := strings.Split(line, ",")
-			if len(arr) < 3 {
-				return xerrors.Errorf("unexpected line: %s", line)
+			arr, err := splitSSLine(line)
+			if err != nil {
+				return err
 			}
 			fcid, err := cid.Decode(arr[1])
 			if err != nil {
@@ -141,4 +181,25 @@ var SyncssCmd = &cli.Command{
 
 		return nil
 	},
+}
+
+func splitSSLine(line string) ([]string, error) {
+	err := xerrors.Errorf("unexpected line: %s", line)
+	args := make([]string, 3)
+	idx := strings.LastIndex(line, ",")
+	if idx == -1 || idx == len(line)-1 {
+		return nil, err
+	}
+	args[2] = line[idx+1:]
+	line = line[:idx]
+	idx = strings.LastIndex(line, ",")
+	if idx == -1 || idx == len(line)-1 {
+		return nil, err
+	}
+	args[1] = line[idx+1:]
+	line = line[:idx]
+
+	args[0] = line
+
+	return args, nil
 }
