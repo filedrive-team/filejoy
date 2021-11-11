@@ -122,6 +122,11 @@ func buildCidByLinks(ctx context.Context, links []*linkAndSize, dagServ format.D
 
 				nd = unixfs.EmptyFileNode()
 				nd.SetCidBuilder(cidBuilder)
+				od, err = NewFSNFromDag(nd)
+				if err != nil {
+					return cid.Undef, err
+				}
+				count = 0
 			}
 			if err := od.AddChild(link.Link, link.FileSize); err != nil {
 				return cid.Undef, err
@@ -129,11 +134,11 @@ func buildCidByLinks(ctx context.Context, links []*linkAndSize, dagServ format.D
 			count++
 		}
 		if len(nd.Links()) > 0 {
-			nd, err := od.Commit()
+			nnd, err := od.Commit()
 			if err != nil {
 				return cid.Undef, err
 			}
-			cpnd := nd.Copy()
+			cpnd := nnd.Copy()
 			needAdd = append(needAdd, cpnd)
 			linkList = append(linkList, &linkAndSize{
 				Link: &format.Link{
@@ -144,6 +149,7 @@ func buildCidByLinks(ctx context.Context, links []*linkAndSize, dagServ format.D
 			})
 		}
 		links = linkList
+		linkList = make([]*linkAndSize, 0)
 	}
 
 	if len(needAdd) > 0 {
@@ -155,6 +161,8 @@ func buildCidByLinks(ctx context.Context, links []*linkAndSize, dagServ format.D
 	return links[0].Link.Cid, nil
 }
 
+// Todos:
+//  read more bytes and parallel the dags save work
 func BalanceNode(ctx context.Context, f io.Reader, bufDs format.DAGService, cidBuilder cid.Builder) (cid.Cid, error) {
 	cker := chunker.NewSizeSplitter(f, int64(UnixfsChunkSize))
 	dataLinks := make([]*linkAndSize, 0)
