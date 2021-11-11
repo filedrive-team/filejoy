@@ -44,7 +44,14 @@ var AddCmd = &cli.Command{
 var Add2Cmd = &cli.Command{
 	Name:  "add2",
 	Usage: "add files",
-	Flags: []cli.Flag{},
+	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:    "batch-read",
+			Aliases: []string{"br"},
+			Usage:   "",
+			Value:   32,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
 
@@ -64,7 +71,7 @@ var Add2Cmd = &cli.Command{
 		}
 		defer closer()
 
-		pb, err := api.Add2(ctx, p)
+		pb, err := api.Add2(ctx, p, cctx.Int("batch-read"))
 		if err != nil {
 			return err
 		}

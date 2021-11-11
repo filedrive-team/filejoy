@@ -2,10 +2,12 @@ package impl
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"math"
+	"sync"
 
 	"github.com/ipfs/go-cid"
-	chunker "github.com/ipfs/go-ipfs-chunker"
 	format "github.com/ipfs/go-ipld-format"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/ipfs/go-merkledag"
@@ -163,36 +165,186 @@ func buildCidByLinks(ctx context.Context, links []*linkAndSize, dagServ format.D
 
 // Todos:
 //  read more bytes and parallel the dags save work
-func BalanceNode(ctx context.Context, f io.Reader, bufDs format.DAGService, cidBuilder cid.Builder) (cid.Cid, error) {
-	cker := chunker.NewSizeSplitter(f, int64(UnixfsChunkSize))
-	dataLinks := make([]*linkAndSize, 0)
+func BalanceNode(ctx context.Context, f io.Reader, fsize int64, bufDs format.DAGService, cidBuilder cid.Builder, batchReadNum int) (cid.Cid, error) {
+	cker := NewBatchSplitter(f, int64(UnixfsChunkSize), batchReadNum)
+	dataLinks := make([]*linkAndSize, dataLinkNum(fsize, int64(UnixfsChunkSize)))
+	errchan := make(chan error)
+	finishedchan := make(chan struct{})
+	linkchan := make(chan IdxLink)
+	go func(linkchan chan IdxLink, finishedchan chan struct{}, errchan chan error) {
+		for {
+			select {
+			case <-ctx.Done():
+				errchan <- ctx.Err()
+				return
+			default:
+			}
+			rd, err := cker.NextBytes()
+			if err == io.EOF {
+				finishedchan <- struct{}{}
+				return
+			}
+			if err != nil {
+				errchan <- err
+				return
+			}
+			wg := sync.WaitGroup{}
+			wg.Add(len(rd))
+			for _, idxbuf := range rd {
+				go func(ib *Idxbuf) {
+					defer wg.Done()
+					fmt.Printf("id: %d, size: %d\n", ib.Idx, len(ib.Buf))
+					dag, err := NewDagWithData(ib.Buf, pb.Data_File, cidBuilder)
+					if err != nil {
+						errchan <- err
+						return
+					}
+					if err = bufDs.Add(ctx, dag); err != nil {
+						errchan <- err
+						return
+					}
+					link, err := format.MakeLink(dag)
+					if err != nil {
+						errchan <- err
+						return
+					}
+					linkchan <- IdxLink{
+						Idx:      ib.Idx,
+						Link:     link,
+						FileSize: uint64(len(ib.Buf)),
+					}
+				}(idxbuf)
+			}
+			wg.Wait()
+		}
+
+	}(linkchan, finishedchan, errchan)
+lab:
 	for {
-		rd, err := cker.NextBytes()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
+		select {
+		case err := <-errchan:
 			return cid.Undef, err
+		case <-finishedchan:
+			break lab
+		case lk := <-linkchan:
+			dataLinks[lk.Idx] = &linkAndSize{
+				Link:     lk.Link,
+				FileSize: lk.FileSize,
+			}
 		}
-		dag, err := NewDagWithData(rd, pb.Data_File, cidBuilder)
-		if err != nil {
-			return cid.Undef, err
-		}
-		link, err := format.MakeLink(dag)
-		if err != nil {
-			return cid.Undef, err
-		}
-		dataLinks = append(dataLinks, &linkAndSize{
-			Link:     link,
-			FileSize: uint64(len(rd)),
-		})
 	}
-	if len(dataLinks) == 0 {
-		return cid.Undef, xerrors.New("encounter empty file")
+	for _, l := range dataLinks {
+		if l == nil {
+			return cid.Undef, xerrors.New("unexpected data links")
+		}
+		//log.Infof("index: %d, bytes len: %d", i, l.FileSize)
+
 	}
 	ciid, err := buildCidByLinks(ctx, dataLinks, bufDs)
 	if err != nil {
 		return cid.Undef, err
 	}
 	return ciid, nil
+}
+
+func dataLinkNum(size, chunksize int64) int {
+	if size == 0 || chunksize == 0 {
+		return 0
+	}
+	r := float64(size) / float64(chunksize)
+	return int(math.Ceil(r))
+}
+
+type IdxLink struct {
+	Idx      int
+	Link     *format.Link
+	FileSize uint64
+}
+
+type Idxbuf struct {
+	Idx int
+	Buf []byte
+}
+
+type BatchSplitter struct {
+	r       io.Reader
+	size    uint32
+	batch   uint32
+	err     error
+	lastidx int
+}
+
+// NewSizeSplitter returns a new size-based Splitter with the given block size.
+func NewBatchSplitter(r io.Reader, size int64, batch int) *BatchSplitter {
+	return &BatchSplitter{
+		r:     r,
+		size:  uint32(size),
+		batch: uint32(batch),
+	}
+}
+
+// NextBytes produces a new chunk.
+func (ss *BatchSplitter) NextBytes() ([]*Idxbuf, error) {
+	if ss.err != nil {
+		return nil, ss.err
+	}
+	full := make([]byte, ss.size*ss.batch)
+	n, err := io.ReadFull(ss.r, full)
+	switch err {
+	case io.ErrUnexpectedEOF:
+		ss.err = io.EOF
+		small := make([]byte, n)
+		copy(small, full)
+		return ss.indexedbuf(small)
+	case nil:
+		return ss.indexedbuf(full)
+	default:
+		return nil, err
+	}
+
+	// full := pool.Get(int(ss.size))
+	// n, err := io.ReadFull(ss.r, full)
+	// switch err {
+	// case io.ErrUnexpectedEOF:
+	// 	ss.err = io.EOF
+	// 	small := make([]byte, n)
+	// 	copy(small, full)
+	// 	pool.Put(full)
+	// 	return small, nil
+	// case nil:
+	// 	return full, nil
+	// default:
+	// 	pool.Put(full)
+	// 	return nil, err
+	// }
+}
+
+func (ss *BatchSplitter) indexedbuf(buf []byte) ([]*Idxbuf, error) {
+	res := make([]*Idxbuf, 0)
+	for {
+		buflen := len(buf)
+		if buflen <= int(ss.size) {
+			res = append(res, &Idxbuf{
+				Idx: ss.lastidx,
+				Buf: buf,
+			})
+			ss.lastidx++
+			break
+		}
+		nxtbuf := make([]byte, ss.size)
+		copy(nxtbuf, buf)
+		res = append(res, &Idxbuf{
+			Idx: ss.lastidx,
+			Buf: nxtbuf,
+		})
+		ss.lastidx++
+		buf = buf[ss.size:]
+
+	}
+	return res, nil
+}
+
+// Reader returns the io.Reader associated to this Splitter.
+func (ss *BatchSplitter) Reader() io.Reader {
+	return ss.r
 }

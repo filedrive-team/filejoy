@@ -192,7 +192,7 @@ func (pb *pbar) Done() bool {
 	return pb.Current >= pb.Total
 }
 
-func (a *CommonAPI) Add2(ctx context.Context, path string) (chan api.PBar, error) {
+func (a *CommonAPI) Add2(ctx context.Context, path string, br int) (chan api.PBar, error) {
 	// cidbuilder
 	cidBuilder, err := merkledag.PrefixForCidVersion(0)
 	if err != nil {
@@ -205,6 +205,7 @@ func (a *CommonAPI) Add2(ctx context.Context, path string) (chan api.PBar, error
 	if finfo.IsDir() {
 		return nil, xerrors.Errorf("%s is dir, add only works on file", path)
 	}
+	fsize := finfo.Size()
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -248,7 +249,7 @@ func (a *CommonAPI) Add2(ctx context.Context, path string) (chan api.PBar, error
 		}
 	}(out, iodone, ioerr)
 	go func(iodone chan struct{}, ioerr chan error) {
-		ndcid, err := BalanceNode(ctx, io.TeeReader(f, pb), a.Node.Dagserv, cidBuilder)
+		ndcid, err := BalanceNode(ctx, io.TeeReader(f, pb), fsize, a.Node.Dagserv, cidBuilder, br)
 		if err != nil {
 			ioerr <- err
 			out <- api.PBar{
