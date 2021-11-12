@@ -114,11 +114,13 @@ func buildCidByLinks(ctx context.Context, links []*linkAndSize, dagServ format.D
 				}
 				cpnd := nnd.Copy()
 				needAdd = append(needAdd, cpnd)
+				link, err := format.MakeLink(cpnd)
+				if err != nil {
+					return cid.Undef, err
+				}
+
 				linkList = append(linkList, &linkAndSize{
-					Link: &format.Link{
-						Size: uint64(od.dag.GetPBNode().Size()),
-						Cid:  od.dag.Cid(),
-					},
+					Link:     link,
 					FileSize: od.file.FileSize(),
 				})
 
@@ -142,11 +144,12 @@ func buildCidByLinks(ctx context.Context, links []*linkAndSize, dagServ format.D
 			}
 			cpnd := nnd.Copy()
 			needAdd = append(needAdd, cpnd)
+			link, err := format.MakeLink(cpnd)
+			if err != nil {
+				return cid.Undef, err
+			}
 			linkList = append(linkList, &linkAndSize{
-				Link: &format.Link{
-					Size: uint64(od.dag.GetPBNode().Size()),
-					Cid:  od.dag.Cid(),
-				},
+				Link:     link,
 				FileSize: od.file.FileSize(),
 			})
 		}

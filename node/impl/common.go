@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/filedrive-team/filehelper"
+	"github.com/filedrive-team/filehelper/importer"
 	"github.com/filedrive-team/filejoy/api"
 	"github.com/filedrive-team/filejoy/node"
 	"github.com/ipfs/go-cid"
@@ -249,7 +250,7 @@ func (a *CommonAPI) Add2(ctx context.Context, path string, br int) (chan api.PBa
 		}
 	}(out, iodone, ioerr)
 	go func(iodone chan struct{}, ioerr chan error) {
-		ndcid, err := BalanceNode(ctx, io.TeeReader(f, pb), fsize, a.Node.Dagserv, cidBuilder, br)
+		ndcid, err := importer.BalanceNode(ctx, io.TeeReader(f, pb), fsize, a.Node.Dagserv, cidBuilder, br)
 		if err != nil {
 			ioerr <- err
 			out <- api.PBar{
