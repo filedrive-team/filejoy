@@ -37,11 +37,12 @@ type Config struct {
 	AnnounceAddrs []string `json:"announce_addrs"`
 	Bootstrappers []string `json:"bootstrappers"`
 
-	Datastore     string  `json:"datastore"`
-	Blockstore    string  `json:"blockstore"`
-	DSClusterConf string  `json:"ds_cluster_conf"`
-	RPC           JSONRPC `json:"rpc"`
-	Relay         bool    `json:"relay"`
+	Datastore      string  `json:"datastore"`
+	Blockstore     string  `json:"blockstore"`
+	DSClusterConf  string  `json:"ds_cluster_conf"`
+	RPC            JSONRPC `json:"rpc"`
+	Relay          bool    `json:"relay"`
+	EnableRemoteDS bool    `json:"enable_remote_ds"`
 }
 
 func LoadOrInitConfig(path string) (*Config, error) {

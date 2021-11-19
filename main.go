@@ -75,7 +75,7 @@ var daemonCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-		defer nd.Host.Close()
+		defer nd.Close()
 
 		// serve rpc
 		var fapi api.FullNode = &impl.FullNodeAPI{

@@ -13,6 +13,8 @@ import (
 	ncfg "github.com/filedrive-team/filejoy/node/config"
 	"github.com/filedrive-team/go-ds-cluster/clusterclient"
 	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
+	dsccore "github.com/filedrive-team/go-ds-cluster/core"
+	"github.com/filedrive-team/go-ds-cluster/p2p/remoteds"
 	"github.com/ipfs/go-bitswap"
 	bsnet "github.com/ipfs/go-bitswap/network"
 	"github.com/ipfs/go-blockservice"
@@ -64,7 +66,8 @@ type Node struct {
 	Bitswap    *bitswap.Bitswap
 	Dagserv    format.DAGService
 
-	Config *ncfg.Config
+	Config       *ncfg.Config
+	RemotedsServ dsccore.DataNodeServer
 }
 
 func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error) {
@@ -218,14 +221,36 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	)
 	dagServ := merkledag.NewDAGService(blockservice.New(blkst, bswap))
 
+	// serve remote datastore
+	var remotedsServer dsccore.DataNodeServer
+	if cfg.EnableRemoteDS {
+		fds := dsmount.New([]dsmount.Mount{
+			{
+				Prefix:    datastore.NewKey(remoteds.PREFIX),
+				Datastore: lds,
+			},
+		})
+		remotedsServer = remoteds.NewStoreServer(ctx, h, remoteds.PROTOCOL_V1, cds, fds, false, 180, func(token string) bool { return true })
+		remotedsServer.Serve()
+	}
+
 	return &Node{
-		Dht:        ipfsdht,
-		FullRT:     frt,
-		Host:       h,
-		Blockstore: blkst,
-		Datastore:  lds,
-		Bitswap:    bswap.(*bitswap.Bitswap),
-		Dagserv:    dagServ,
-		Config:     cfg,
+		Dht:          ipfsdht,
+		FullRT:       frt,
+		Host:         h,
+		Blockstore:   blkst,
+		Datastore:    lds,
+		Bitswap:      bswap.(*bitswap.Bitswap),
+		Dagserv:      dagServ,
+		Config:       cfg,
+		RemotedsServ: remotedsServer,
 	}, nil
+}
+
+func (n *Node) Close() (err error) {
+	err = n.Host.Close()
+	if n.RemotedsServ != nil {
+		err = n.RemotedsServ.Close()
+	}
+	return
 }
