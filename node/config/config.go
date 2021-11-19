@@ -15,6 +15,7 @@ import (
 const DefaultRepoPath = "~/.filejoy"
 const DefaultNodeConf = "config.json"
 const lvdspath = "datastore"
+const flatfspath = "blocks"
 const dscfgpath = "dscluster.json"
 const defaultJSONRPCHost = "0.0.0.0"
 const defaultJSONRPCRoot = "/rpc/v0"
@@ -37,6 +38,7 @@ type Config struct {
 	Bootstrappers []string `json:"bootstrappers"`
 
 	Datastore     string  `json:"datastore"`
+	Blockstore    string  `json:"blockstore"`
 	DSClusterConf string  `json:"ds_cluster_conf"`
 	RPC           JSONRPC `json:"rpc"`
 	Relay         bool    `json:"relay"`
@@ -56,6 +58,7 @@ func LoadOrInitConfig(path string) (*Config, error) {
 		cfg = &Config{
 			ListenAddrs:   []string{fmt.Sprintf("/ip4/0.0.0.0/tcp/%s", filehelper.RandPort())},
 			Datastore:     lvdspath,
+			Blockstore:    flatfspath,
 			DSClusterConf: dscfgpath,
 			RPC: JSONRPC{
 				Host: defaultJSONRPCHost,

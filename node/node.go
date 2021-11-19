@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-datastore"
 	dsmount "github.com/ipfs/go-datastore/mount"
+	flatfs "github.com/ipfs/go-ds-flatfs"
 	levelds "github.com/ipfs/go-ds-leveldb"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
@@ -168,14 +170,33 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		return nil, xerrors.Errorf("constructing fullrt: %w", err)
 	}
 
-	dcfg, err := dsccfg.ReadConfig(filepath.Join(repoPath, cfg.DSClusterConf))
-	if err != nil {
-		return nil, err
-	}
 	var cds datastore.Datastore
-	cds, err = clusterclient.NewClusterClient(context.Background(), dcfg)
-	if err != nil {
-		return nil, err
+	dsclustercfgpath := filepath.Join(repoPath, cfg.DSClusterConf)
+	_, cerr := os.Stat(dsclustercfgpath)
+	if cerr == nil {
+		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
+		if err != nil {
+			return nil, err
+		}
+
+		cds, err = clusterclient.NewClusterClient(context.Background(), dcfg)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if os.IsNotExist(cerr) {
+			p := filepath.Join(repoPath, cfg.Blockstore)
+			shardFunc, err := flatfs.ParseShardFunc("/repo/flatfs/shard/v1/next-to-last/2")
+			if err != nil {
+				return nil, err
+			}
+			cds, err = flatfs.CreateOrOpen(p, shardFunc, true)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, cerr
+		}
 	}
 	cds = dsmount.New([]dsmount.Mount{
 		{
