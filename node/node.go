@@ -20,7 +20,6 @@ import (
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-datastore"
 	dsmount "github.com/ipfs/go-datastore/mount"
-	flatfs "github.com/ipfs/go-ds-flatfs"
 	levelds "github.com/ipfs/go-ds-leveldb"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
@@ -39,6 +38,7 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
 	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
 	"github.com/multiformats/go-multiaddr"
+	badgerds "github.com/textileio/go-ds-badger3"
 	"golang.org/x/xerrors"
 )
 
@@ -189,14 +189,23 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	} else {
 		if os.IsNotExist(cerr) {
 			p := filepath.Join(repoPath, cfg.Blockstore)
-			shardFunc, err := flatfs.ParseShardFunc("/repo/flatfs/shard/v1/next-to-last/2")
+			if err := os.MkdirAll(p, 0755); err != nil {
+				return nil, err
+			}
+			opts := badgerds.DefaultOptions
+			cds, err = badgerds.NewDatastore(p, &opts)
 			if err != nil {
 				return nil, err
 			}
-			cds, err = flatfs.CreateOrOpen(p, shardFunc, true)
-			if err != nil {
-				return nil, err
-			}
+			// p := filepath.Join(repoPath, cfg.Blockstore)
+			// shardFunc, err := flatfs.ParseShardFunc("/repo/flatfs/shard/v1/next-to-last/2")
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// cds, err = flatfs.CreateOrOpen(p, shardFunc, true)
+			// if err != nil {
+			// 	return nil, err
+			// }
 		} else {
 			return nil, cerr
 		}
