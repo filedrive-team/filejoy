@@ -24,6 +24,7 @@ import (
 var logging = log.Logger("filejoy")
 
 func init() {
+	//log.SetLogLevel("*", "INFO")
 	log.SetLogLevelRegex("^filejoy", "INFO")
 }
 

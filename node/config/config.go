@@ -17,6 +17,7 @@ const DefaultNodeConf = "config.json"
 const lvdspath = "datastore"
 const flatfspath = "blocks"
 const dscfgpath = "dscluster.json"
+const remotedscfgpath = "remoteds.json"
 const defaultJSONRPCHost = "0.0.0.0"
 const defaultJSONRPCRoot = "/rpc/v0"
 
@@ -40,6 +41,7 @@ type Config struct {
 	Datastore      string  `json:"datastore"`
 	Blockstore     string  `json:"blockstore"`
 	DSClusterConf  string  `json:"ds_cluster_conf"`
+	RemoteDSConf   string  `json:"remote_ds_conf"`
 	RPC            JSONRPC `json:"rpc"`
 	Relay          bool    `json:"relay"`
 	EnableRemoteDS bool    `json:"enable_remote_ds"`
@@ -61,6 +63,7 @@ func LoadOrInitConfig(path string) (*Config, error) {
 			Datastore:     lvdspath,
 			Blockstore:    flatfspath,
 			DSClusterConf: dscfgpath,
+			RemoteDSConf:  remotedscfgpath,
 			RPC: JSONRPC{
 				Host: defaultJSONRPCHost,
 				Port: filehelper.RandPort(),

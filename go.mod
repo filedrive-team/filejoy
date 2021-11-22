@@ -6,7 +6,7 @@ require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/filecoin-project/go-padreader v0.0.1
 	github.com/filedrive-team/filehelper v0.0.9
-	github.com/filedrive-team/go-ds-cluster v0.0.6-0.20211119102542-4fdf57d6a6c4
+	github.com/filedrive-team/go-ds-cluster v0.0.6
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/snappy v0.0.3 // indirect

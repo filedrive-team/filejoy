@@ -15,6 +15,7 @@ import (
 	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
 	dsccore "github.com/filedrive-team/go-ds-cluster/core"
 	"github.com/filedrive-team/go-ds-cluster/p2p/remoteds"
+	"github.com/filedrive-team/go-ds-cluster/remoteclient"
 	"github.com/ipfs/go-bitswap"
 	bsnet "github.com/ipfs/go-bitswap/network"
 	"github.com/ipfs/go-blockservice"
@@ -175,19 +176,34 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 
 	var cds datastore.Datastore
 	dsclustercfgpath := filepath.Join(repoPath, cfg.DSClusterConf)
-	_, cerr := os.Stat(dsclustercfgpath)
-	if cerr == nil {
+	remotedscfgpath := filepath.Join(repoPath, cfg.RemoteDSConf)
+	_, dscerr := os.Stat(dsclustercfgpath)
+	_, rdserr := os.Stat(remotedscfgpath)
+	if dscerr == nil {
 		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
 		if err != nil {
 			return nil, err
 		}
 
-		cds, err = clusterclient.NewClusterClient(context.Background(), dcfg)
+		cds, err = clusterclient.NewClusterClient(ctx, dcfg)
+		if err != nil {
+			return nil, err
+		}
+	} else if rdserr == nil {
+		rcfg, err := remoteclient.ReadConfig(remotedscfgpath)
+		if err != nil {
+			return nil, err
+		}
+		h, err := remoteclient.HostForRemoteClient(rcfg)
+		if err != nil {
+			return nil, err
+		}
+		cds, err = remoteclient.NewRemoteStore(ctx, h, rcfg.Target, rcfg.Timeout, rcfg.AccessToken)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		if os.IsNotExist(cerr) {
+		if os.IsNotExist(dscerr) && os.IsNotExist(rdserr) {
 			p := filepath.Join(repoPath, cfg.Blockstore)
 			if err := os.MkdirAll(p, 0755); err != nil {
 				return nil, err
@@ -207,7 +223,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 			// 	return nil, err
 			// }
 		} else {
-			return nil, cerr
+			return nil, dscerr
 		}
 	}
 	cds = dsmount.New([]dsmount.Mount{
@@ -233,13 +249,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	// serve remote datastore
 	var remotedsServer dsccore.DataNodeServer
 	if cfg.EnableRemoteDS {
-		fds := dsmount.New([]dsmount.Mount{
-			{
-				Prefix:    datastore.NewKey(remoteds.PREFIX),
-				Datastore: lds,
-			},
-		})
-		remotedsServer = remoteds.NewStoreServer(ctx, h, remoteds.PROTOCOL_V1, cds, fds, false, 180, func(token string) bool { return true })
+		remotedsServer = remoteds.NewStoreServer(ctx, h, remoteds.PROTOCOL_V1, cds, lds, false, 180, func(token string) bool { return true }, func(token string) string { return "/ccc" })
 		remotedsServer.Serve()
 	}
 
