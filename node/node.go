@@ -179,6 +179,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	remotedscfgpath := filepath.Join(repoPath, cfg.RemoteDSConf)
 	_, dscerr := os.Stat(dsclustercfgpath)
 	_, rdserr := os.Stat(remotedscfgpath)
+	useRemoteStore := false
 	if dscerr == nil {
 		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
 		if err != nil {
@@ -189,6 +190,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		if err != nil {
 			return nil, err
 		}
+		log.Info("use dscluster as blockstore")
 	} else if rdserr == nil {
 		rcfg, err := remoteclient.ReadConfig(remotedscfgpath)
 		if err != nil {
@@ -202,6 +204,8 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		if err != nil {
 			return nil, err
 		}
+		useRemoteStore = true
+		log.Info("use remoteds as blockstore")
 	} else {
 		if os.IsNotExist(dscerr) && os.IsNotExist(rdserr) {
 			p := filepath.Join(repoPath, cfg.Blockstore)
@@ -213,6 +217,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 			if err != nil {
 				return nil, err
 			}
+			log.Info("use badger as blockstore")
 			// p := filepath.Join(repoPath, cfg.Blockstore)
 			// shardFunc, err := flatfs.ParseShardFunc("/repo/flatfs/shard/v1/next-to-last/2")
 			// if err != nil {
@@ -222,19 +227,27 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 			// if err != nil {
 			// 	return nil, err
 			// }
+
 		} else {
 			return nil, dscerr
 		}
 	}
-	cds = dsmount.New([]dsmount.Mount{
-		{
-			Prefix:    blockstore.BlockPrefix,
-			Datastore: cds,
-		},
-	})
+	if !useRemoteStore {
+		cds = dsmount.New([]dsmount.Mount{
+			{
+				Prefix:    blockstore.BlockPrefix,
+				Datastore: cds,
+			},
+		})
+	}
 
-	var blkst blockstore.Blockstore = blockstore.NewBlockstore(cds.(*dsmount.Datastore))
-	blkst = pbstore.NewParaBlockstore(blkst, 25)
+	var blkst blockstore.Blockstore
+	if useRemoteStore {
+		blkst = blockstore.NewBlockstore(cds.(*remoteclient.RemoteStore))
+	} else {
+		blkst = blockstore.NewBlockstore(cds.(*dsmount.Datastore))
+		blkst = pbstore.NewParaBlockstore(blkst, 25)
+	}
 
 	bsnet := bsnet.NewFromIpfsHost(h, frt)
 
