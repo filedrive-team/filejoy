@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ipfs/go-cid"
@@ -42,38 +43,33 @@ var SyncssCmd = &cli.Command{
 			Aliases: []string{"fl"},
 			Usage:   "sync directly from lists in the text file",
 		},
+		&cli.Int64Flag{
+			Name:  "sssize",
+			Value: 0, // 3TiB 3298534883328
+			Usage: "split snapshot file into slice according to sssize",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
+		sssize := cctx.Int64("sssize")
 		onlyDag := cctx.Bool("only-dag")
 		onlyCheck := cctx.Bool("only-check")
 		args := cctx.Args().Slice()
-		if len(args) < 2 && !(onlyCheck || onlyDag) {
+		if len(args) < 2 && !(onlyCheck || onlyDag || sssize > 0) {
 			log.Info("usage: filejoy syncss [snapshot-cid] [target-path]")
 			return nil
 		}
-		var p string
 		var err error
-		if len(args) > 1 {
-			p, err = homedir.Expand(args[1])
-			if err != nil {
-				return err
-			}
-		}
-		if !strings.HasPrefix(p, "/") {
-			if dir, err := os.Getwd(); err == nil {
-				p = filepath.Join(dir, p)
-			}
-		}
-		sscid, err := cid.Decode(args[0])
-		if err != nil {
-			return err
-		}
 		api, closer, err := GetAPI(cctx)
 		if err != nil {
 			return err
 		}
 		defer closer()
+		var sscidstr string
+		if len(args) > 0 {
+			sscidstr = args[0]
+		}
+		var p string
 
 		var totalLine, checkedLine, errLine int
 		var sr *bufio.Reader
@@ -86,6 +82,21 @@ var SyncssCmd = &cli.Command{
 			defer f.Close()
 			sr = bufio.NewReader(f)
 		} else {
+			if len(args) > 1 {
+				p, err = homedir.Expand(args[1])
+				if err != nil {
+					return err
+				}
+			}
+			if !strings.HasPrefix(p, "/") {
+				if dir, err := os.Getwd(); err == nil {
+					p = filepath.Join(dir, p)
+				}
+			}
+			sscid, err := cid.Decode(sscidstr)
+			if err != nil {
+				return err
+			}
 			// write snapshot to tmp file
 			ssfn := filepath.Join(os.TempDir(), args[0])
 
@@ -124,11 +135,14 @@ var SyncssCmd = &cli.Command{
 			sr = bufio.NewReader(iorder)
 		}
 
+		slice_index := 0
+		slice_line_cache := make([]string, 0)
+		slice_size := int64(0)
 		for {
 			line, err := sr.ReadString('\n')
 			if err != nil {
 				if err == io.EOF {
-					fmt.Println("finished sync")
+					fmt.Println("end with snapshot file")
 				} else {
 					log.Error(err)
 				}
@@ -138,6 +152,24 @@ var SyncssCmd = &cli.Command{
 			arr, err := splitSSLine(line)
 			if err != nil {
 				return err
+			}
+			if sssize > 0 {
+				// split snapshot files
+				fsize, err := strconv.ParseInt(strings.TrimSuffix(arr[2], "\n"), 10, 64)
+				if err != nil {
+					return err
+				}
+				slice_size += fsize
+				slice_line_cache = append(slice_line_cache, line)
+				if slice_size >= sssize {
+					if err := writeSlice(slice_line_cache, fmt.Sprintf("%s_%d", sscidstr, slice_index)); err != nil {
+						return err
+					}
+					slice_size = 0
+					slice_line_cache = make([]string, 0)
+					slice_index++
+				}
+				continue
 			}
 			fcid, err := cid.Decode(arr[1])
 			if err != nil {
@@ -179,6 +211,11 @@ var SyncssCmd = &cli.Command{
 			fmt.Printf("checked: %d\n", checkedLine)
 			fmt.Printf("err: %d\n", errLine)
 		}
+		if slice_size >= sssize && len(slice_line_cache) > 0 {
+			if err := writeSlice(slice_line_cache, fmt.Sprintf("%s_%d", sscidstr, slice_index)); err != nil {
+				return err
+			}
+		}
 
 		return nil
 	},
@@ -203,4 +240,13 @@ func splitSSLine(line string) ([]string, error) {
 	args[0] = line
 
 	return args, nil
+}
+
+func writeSlice(lines []string, fname string) error {
+	cw, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	targetpath := filepath.Join(cw, fname)
+	return os.WriteFile(targetpath, []byte(strings.Join(lines, "")), 0644)
 }
