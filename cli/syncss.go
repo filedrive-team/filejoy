@@ -211,7 +211,7 @@ var SyncssCmd = &cli.Command{
 			fmt.Printf("checked: %d\n", checkedLine)
 			fmt.Printf("err: %d\n", errLine)
 		}
-		if slice_size >= sssize && len(slice_line_cache) > 0 {
+		if sssize > 0 && len(slice_line_cache) > 0 {
 			if err := writeSlice(slice_line_cache, fmt.Sprintf("%s_%d", sscidstr, slice_index)); err != nil {
 				return err
 			}
