@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -92,10 +93,28 @@ var DagSync = &cli.Command{
 			Usage:   "",
 			Value:   32,
 		},
+		&cli.StringFlag{
+			Name:  "f",
+			Usage: "",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
 		args := cctx.Args().Slice()
+		cidsFilePath := cctx.String("f")
+
+		if cidsFilePath != "" {
+			if bs, err := ioutil.ReadFile(cidsFilePath); err == nil {
+				cidlist := strings.Split(string(bs), "\n")
+				for _, cidstr := range cidlist {
+					cidstr = strings.TrimSpace(cidstr)
+					if cidstr != "" {
+						args = append(args, cidstr)
+					}
+				}
+			}
+		}
+
 		var cids = make([]cid.Cid, 0)
 		for _, cidstr := range args {
 			cid, err := cid.Decode(cidstr)
@@ -104,6 +123,7 @@ var DagSync = &cli.Command{
 			}
 			cids = append(cids, cid)
 		}
+		fmt.Println(cids)
 
 		api, closer, err := GetAPI(cctx)
 		if err != nil {
