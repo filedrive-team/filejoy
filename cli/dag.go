@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -20,6 +22,7 @@ var DagCmd = &cli.Command{
 		DagSync,
 		DagExport,
 		DagHas,
+		DagGenPieces,
 	},
 }
 
@@ -157,7 +160,7 @@ var DagExport = &cli.Command{
 		ctx := ReqContext(cctx)
 		args := cctx.Args().Slice()
 		if len(args) < 2 {
-			log.Info("usage: filejoy get [cid] [path]")
+			log.Info("usage: filejoy dag export [cid] [path]")
 			return nil
 		}
 		cid, err := cid.Decode(args[0])
@@ -187,4 +190,89 @@ var DagExport = &cli.Command{
 
 		return PrintProgress(pb)
 	},
+}
+
+var DagGenPieces = &cli.Command{
+	Name:  "gen-pieces",
+	Usage: "gen pieces from cid list",
+	Flags: []cli.Flag{},
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+		args := cctx.Args().Slice()
+		if len(args) < 2 {
+			log.Info("usage: filejoy dag gen-pieces [input-file] [path-to-filestore]")
+			return nil
+		}
+		fileStore := args[1]
+		if isDir, err := isDir(fileStore); err != nil || !isDir {
+			log.Info("usage: filejoy dag gen-pieces [input-file] [path-to-filestore]")
+			return err
+		}
+		api, closer, err := GetAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		cidListFile := args[0]
+		f, err := os.Open(cidListFile)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		liner := bufio.NewReader(f)
+		for {
+			line, err := liner.ReadString('\n')
+			if err != nil {
+				if err == io.EOF {
+					fmt.Println("end with input file")
+				} else {
+					log.Error(err)
+				}
+				break
+			}
+			arr, err := splitSSLine(line)
+			if err != nil {
+				return err
+			}
+			cid, err := cid.Decode(arr[0])
+			if err != nil {
+				return err
+			}
+			pdir, ppath := piecePath(arr[1], fileStore)
+			if err = os.MkdirAll(pdir, 0755); err != nil {
+				return err
+			}
+
+			pb, err := api.DagExport(ctx, cid, ppath, true)
+			if err != nil {
+				return err
+			}
+
+			PrintProgress(pb)
+
+		}
+		return nil
+
+	},
+}
+
+func piecePath(piececid string, filestore string) (dir string, path string) {
+	dir = filestore
+	pieceLen := len(piececid)
+	for i := 0; i < 3; i++ {
+		name := piececid[pieceLen-(i+1)*4 : pieceLen-i*4]
+		dir = filepath.Join(dir, name)
+	}
+	path = filepath.Join(dir, piececid)
+	return
+}
+
+func isDir(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+
+	return info.IsDir(), nil
 }
