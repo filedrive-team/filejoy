@@ -240,6 +240,12 @@ var DagGenPieces = &cli.Command{
 				return err
 			}
 			pdir, ppath := piecePath(arr[1], fileStore)
+			fmt.Printf("will gen: %s\n", ppath)
+			if finfo, err := os.Stat(ppath); err == nil {
+				fmt.Printf("aleady has %s, size: %d, esize: %s; will ignore", ppath, finfo.Size(), arr[2])
+				break
+			}
+
 			if err = os.MkdirAll(pdir, 0755); err != nil {
 				return err
 			}

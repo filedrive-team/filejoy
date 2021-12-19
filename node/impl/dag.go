@@ -13,6 +13,10 @@ import (
 	"github.com/filedrive-team/filejoy/node"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	dss "github.com/ipfs/go-datastore/sync"
+	bstore "github.com/ipfs/go-ipfs-blockstore"
+	offline "github.com/ipfs/go-ipfs-exchange-offline"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
 	gocar "github.com/ipld/go-car"
@@ -74,6 +78,9 @@ func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan 
 }
 
 func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool) (chan api.PBar, error) {
+	// collect all dags
+	membs, err := collectDags(ctx, c, a.Node.Blockstore)
+
 	pr, pw := io.Pipe()
 
 	errCh := make(chan error, 2)
@@ -87,7 +94,7 @@ func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool
 			close(carSize)
 		}()
 
-		selcar := gocar.NewSelectiveCar(ctx, a.Node.Blockstore, []gocar.Dag{{Root: c, Selector: allSelector()}})
+		selcar := gocar.NewSelectiveCar(ctx, membs, []gocar.Dag{{Root: c, Selector: allSelector()}})
 		preparedCar, err := selcar.Prepare()
 		if err != nil {
 			errCh <- err
@@ -186,4 +193,48 @@ func allSelector() ipldprime.Node {
 	return ssb.ExploreRecursive(selector.RecursionLimitNone(),
 		ssb.ExploreAll(ssb.ExploreRecursiveEdge())).
 		Node()
+}
+
+func collectDags(ctx context.Context, cid cid.Cid, bs bstore.Blockstore) (bstore.Blockstore, error) {
+	dagServ := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
+	memstore := bstore.NewBlockstore(dss.MutexWrap(datastore.NewMapDatastore()))
+	memdag := merkledag.NewDAGService(blockservice.New(memstore, offline.Exchange(memstore)))
+
+	if err := dagWalk(ctx, cid, dagServ, func(nd format.Node) error {
+		return memdag.Add(ctx, nd)
+	}); err != nil {
+		return nil, err
+	}
+	return memstore, nil
+}
+
+func dagWalk(ctx context.Context, cid cid.Cid, dagServ format.DAGService, cb func(nd format.Node) error) error {
+	node, err := dagServ.Get(ctx, cid)
+	if err != nil {
+		return err
+	}
+	if err := cb(node); err != nil {
+		return err
+	}
+	links := node.Links()
+	if len(links) == 0 {
+		return nil
+	}
+	var wg sync.WaitGroup
+	batchchan := make(chan struct{}, 32)
+	wg.Add(len(links))
+	for _, link := range links {
+		go func(link *format.Link) {
+			defer func() {
+				<-batchchan
+				wg.Done()
+			}()
+			batchchan <- struct{}{}
+			if err := dagWalk(ctx, link.Cid, dagServ, cb); err != nil {
+				log.Error(err)
+			}
+		}(link)
+	}
+	wg.Wait()
+	return nil
 }
