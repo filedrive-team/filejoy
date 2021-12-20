@@ -8,11 +8,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/filecoin-project/go-padreader"
-	pbstore "github.com/filedrive-team/filehelper/blockstore"
 	"github.com/filedrive-team/go-ds-cluster/clusterclient"
 	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
 	"github.com/ipfs/go-blockservice"
@@ -220,6 +220,11 @@ var DagGenPieces = &cli.Command{
 			Aliases: []string{"dsc"},
 			Usage:   "",
 		},
+		&cli.IntFlag{
+			Name:  "batch",
+			Value: 32,
+			Usage: "",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
@@ -233,7 +238,7 @@ var DagGenPieces = &cli.Command{
 			log.Info("usage: filejoy dag gen-pieces [input-file] [path-to-filestore]")
 			return err
 		}
-
+		var batchNum = cctx.Int("batch")
 		var cds datastore.Datastore
 		dsclustercfgpath := cctx.String("dscluster")
 		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
@@ -251,9 +256,7 @@ var DagGenPieces = &cli.Command{
 				Datastore: cds,
 			},
 		})
-		var blkst bstore.Blockstore
-		blkst = bstore.NewBlockstore(cds.(*dsmount.Datastore))
-		blkst = pbstore.NewParaBlockstore(blkst, 32)
+		blkst := bstore.NewBlockstore(cds.(*dsmount.Datastore))
 
 		cidListFile := args[0]
 		f, err := os.Open(cidListFile)
@@ -280,9 +283,13 @@ var DagGenPieces = &cli.Command{
 			if err != nil {
 				return err
 			}
+			expectSize, err := strconv.ParseInt(strings.TrimSpace(arr[2]), 10, 64)
+			if err != nil {
+				return err
+			}
 			pdir, ppath := piecePath(arr[1], fileStore)
 			fmt.Printf("will gen: %s\n", ppath)
-			if finfo, err := os.Stat(ppath); err == nil {
+			if finfo, err := os.Stat(ppath); err == nil && finfo.Size() == expectSize {
 				fmt.Printf("aleady has %s, size: %d, esize: %s; will ignore", ppath, finfo.Size(), arr[2])
 				break
 			}
@@ -291,7 +298,7 @@ var DagGenPieces = &cli.Command{
 				return err
 			}
 
-			if err = writePiece(ctx, cid, ppath, blkst); err != nil {
+			if err = writePiece(ctx, cid, ppath, blkst, batchNum); err != nil {
 				return err
 			}
 
@@ -321,8 +328,8 @@ func isDir(path string) (bool, error) {
 	return info.IsDir(), nil
 }
 
-func writePiece(ctx context.Context, cid cid.Cid, ppath string, bs bstore.Blockstore) error {
-	membs, err := collectDags(ctx, cid, bs)
+func writePiece(ctx context.Context, cid cid.Cid, ppath string, bs bstore.Blockstore, batchNum int) error {
+	membs, err := collectDags(ctx, cid, bs, batchNum)
 	if err != nil {
 		return err
 	}
@@ -361,12 +368,12 @@ func allSelector() ipldprime.Node {
 		Node()
 }
 
-func collectDags(ctx context.Context, cid cid.Cid, bs bstore.Blockstore) (bstore.Blockstore, error) {
+func collectDags(ctx context.Context, cid cid.Cid, bs bstore.Blockstore, batchNum int) (bstore.Blockstore, error) {
 	dagServ := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
 	memstore := bstore.NewBlockstore(dss.MutexWrap(datastore.NewMapDatastore()))
 	memdag := merkledag.NewDAGService(blockservice.New(memstore, offline.Exchange(memstore)))
 
-	if err := dagWalk(ctx, cid, dagServ, func(nd format.Node) error {
+	if err := dagWalk(ctx, cid, dagServ, batchNum, func(nd format.Node) error {
 		return memdag.Add(ctx, nd)
 	}); err != nil {
 		return nil, err
@@ -374,7 +381,7 @@ func collectDags(ctx context.Context, cid cid.Cid, bs bstore.Blockstore) (bstore
 	return memstore, nil
 }
 
-func dagWalk(ctx context.Context, cid cid.Cid, dagServ format.DAGService, cb func(nd format.Node) error) error {
+func dagWalk(ctx context.Context, cid cid.Cid, dagServ format.DAGService, batchNum int, cb func(nd format.Node) error) error {
 	node, err := dagServ.Get(ctx, cid)
 	if err != nil {
 		return err
@@ -387,7 +394,7 @@ func dagWalk(ctx context.Context, cid cid.Cid, dagServ format.DAGService, cb fun
 		return nil
 	}
 	var wg sync.WaitGroup
-	batchchan := make(chan struct{}, 64)
+	batchchan := make(chan struct{}, batchNum)
 	wg.Add(len(links))
 	for _, link := range links {
 		go func(link *format.Link) {
@@ -396,7 +403,7 @@ func dagWalk(ctx context.Context, cid cid.Cid, dagServ format.DAGService, cb fun
 				wg.Done()
 			}()
 			batchchan <- struct{}{}
-			if err := dagWalk(ctx, link.Cid, dagServ, cb); err != nil {
+			if err := dagWalk(ctx, link.Cid, dagServ, batchNum, cb); err != nil {
 				log.Error(err)
 			}
 		}(link)
