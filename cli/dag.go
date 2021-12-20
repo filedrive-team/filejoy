@@ -291,7 +291,7 @@ var DagGenPieces = &cli.Command{
 			fmt.Printf("will gen: %s\n", ppath)
 			if finfo, err := os.Stat(ppath); err == nil && finfo.Size() == expectSize {
 				fmt.Printf("aleady has %s, size: %d, esize: %s; will ignore", ppath, finfo.Size(), arr[2])
-				break
+				continue
 			}
 
 			if err = os.MkdirAll(pdir, 0755); err != nil {
