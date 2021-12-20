@@ -2,14 +2,33 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
+	"github.com/filecoin-project/go-padreader"
+	pbstore "github.com/filedrive-team/filehelper/blockstore"
+	"github.com/filedrive-team/go-ds-cluster/clusterclient"
+	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
+	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	dsmount "github.com/ipfs/go-datastore/mount"
+	dss "github.com/ipfs/go-datastore/sync"
+	bstore "github.com/ipfs/go-ipfs-blockstore"
+	offline "github.com/ipfs/go-ipfs-exchange-offline"
+	format "github.com/ipfs/go-ipld-format"
+	"github.com/ipfs/go-merkledag"
+	gocar "github.com/ipld/go-car"
+	ipldprime "github.com/ipld/go-ipld-prime"
+	basicnode "github.com/ipld/go-ipld-prime/node/basic"
+	"github.com/ipld/go-ipld-prime/traversal/selector"
+	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
 )
@@ -195,7 +214,13 @@ var DagExport = &cli.Command{
 var DagGenPieces = &cli.Command{
 	Name:  "gen-pieces",
 	Usage: "gen pieces from cid list",
-	Flags: []cli.Flag{},
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "dscluster",
+			Aliases: []string{"dsc"},
+			Usage:   "",
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
 		args := cctx.Args().Slice()
@@ -208,11 +233,27 @@ var DagGenPieces = &cli.Command{
 			log.Info("usage: filejoy dag gen-pieces [input-file] [path-to-filestore]")
 			return err
 		}
-		api, closer, err := GetAPI(cctx)
+
+		var cds datastore.Datastore
+		dsclustercfgpath := cctx.String("dscluster")
+		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
 		if err != nil {
 			return err
 		}
-		defer closer()
+
+		cds, err = clusterclient.NewClusterClient(ctx, dcfg)
+		if err != nil {
+			return err
+		}
+		cds = dsmount.New([]dsmount.Mount{
+			{
+				Prefix:    bstore.BlockPrefix,
+				Datastore: cds,
+			},
+		})
+		var blkst bstore.Blockstore
+		blkst = bstore.NewBlockstore(cds.(*dsmount.Datastore))
+		blkst = pbstore.NewParaBlockstore(blkst, 32)
 
 		cidListFile := args[0]
 		f, err := os.Open(cidListFile)
@@ -250,12 +291,9 @@ var DagGenPieces = &cli.Command{
 				return err
 			}
 
-			pb, err := api.DagExport(ctx, cid, ppath, true)
-			if err != nil {
+			if err = writePiece(ctx, cid, ppath, blkst); err != nil {
 				return err
 			}
-
-			PrintProgress(pb)
 
 		}
 		return nil
@@ -281,4 +319,98 @@ func isDir(path string) (bool, error) {
 	}
 
 	return info.IsDir(), nil
+}
+
+func writePiece(ctx context.Context, cid cid.Cid, ppath string, bs bstore.Blockstore) error {
+	membs, err := collectDags(ctx, cid, bs)
+	if err != nil {
+		return err
+	}
+
+	selcar := gocar.NewSelectiveCar(ctx, membs, []gocar.Dag{{Root: cid, Selector: allSelector()}})
+
+	f, err := os.Create(ppath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	if err := selcar.Write(f); err != nil {
+		return err
+	}
+	finfo, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	carSize := finfo.Size()
+	log.Infof("car file size: %d", carSize)
+	pieceSize := padreader.PaddedSize(uint64(carSize))
+	nr := io.LimitReader(nullReader{}, int64(pieceSize)-carSize)
+	wn, err := io.Copy(f, nr)
+	if err != nil {
+		return err
+	}
+	log.Infof("padsize %d, write pad %d", int64(pieceSize)-carSize, wn)
+	return nil
+}
+
+func allSelector() ipldprime.Node {
+	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
+	return ssb.ExploreRecursive(selector.RecursionLimitNone(),
+		ssb.ExploreAll(ssb.ExploreRecursiveEdge())).
+		Node()
+}
+
+func collectDags(ctx context.Context, cid cid.Cid, bs bstore.Blockstore) (bstore.Blockstore, error) {
+	dagServ := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
+	memstore := bstore.NewBlockstore(dss.MutexWrap(datastore.NewMapDatastore()))
+	memdag := merkledag.NewDAGService(blockservice.New(memstore, offline.Exchange(memstore)))
+
+	if err := dagWalk(ctx, cid, dagServ, func(nd format.Node) error {
+		return memdag.Add(ctx, nd)
+	}); err != nil {
+		return nil, err
+	}
+	return memstore, nil
+}
+
+func dagWalk(ctx context.Context, cid cid.Cid, dagServ format.DAGService, cb func(nd format.Node) error) error {
+	node, err := dagServ.Get(ctx, cid)
+	if err != nil {
+		return err
+	}
+	if err := cb(node); err != nil {
+		return err
+	}
+	links := node.Links()
+	if len(links) == 0 {
+		return nil
+	}
+	var wg sync.WaitGroup
+	batchchan := make(chan struct{}, 64)
+	wg.Add(len(links))
+	for _, link := range links {
+		go func(link *format.Link) {
+			defer func() {
+				<-batchchan
+				wg.Done()
+			}()
+			batchchan <- struct{}{}
+			if err := dagWalk(ctx, link.Cid, dagServ, cb); err != nil {
+				log.Error(err)
+			}
+		}(link)
+	}
+	wg.Wait()
+	return nil
+}
+
+type nullReader struct{}
+
+// Read writes NUL bytes into the provided byte slice.
+func (nr nullReader) Read(b []byte) (int, error) {
+	for i := range b {
+		b[i] = 0
+	}
+	return len(b), nil
 }

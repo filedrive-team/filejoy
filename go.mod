@@ -5,6 +5,7 @@ go 1.16
 require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/filecoin-project/go-padreader v0.0.1
+	github.com/filecoin-project/go-state-types v0.0.0-20200903145444-247639ffa6ad
 	github.com/filedrive-team/filehelper v0.0.9
 	github.com/filedrive-team/go-ds-cluster v0.0.6
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
