@@ -15,22 +15,17 @@ import (
 	"github.com/filecoin-project/go-padreader"
 	"github.com/filedrive-team/go-ds-cluster/clusterclient"
 	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
-	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dsmount "github.com/ipfs/go-datastore/mount"
-	dss "github.com/ipfs/go-datastore/sync"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
-	offline "github.com/ipfs/go-ipfs-exchange-offline"
 	format "github.com/ipfs/go-ipld-format"
-	"github.com/ipfs/go-merkledag"
+	legacy "github.com/ipfs/go-ipld-legacy"
 	gocar "github.com/ipld/go-car"
-	ipldprime "github.com/ipld/go-ipld-prime"
-	basicnode "github.com/ipld/go-ipld-prime/node/basic"
-	"github.com/ipld/go-ipld-prime/traversal/selector"
-	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
+	carutil "github.com/ipld/go-car/util"
 	"github.com/mitchellh/go-homedir"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/xerrors"
 )
 
 var DagCmd = &cli.Command{
@@ -298,7 +293,7 @@ var DagGenPieces = &cli.Command{
 				return err
 			}
 
-			if err = writePiece(ctx, cid, ppath, blkst, batchNum); err != nil {
+			if err = writePieceV3(ctx, cid, ppath, blkst, batchNum); err != nil {
 				return err
 			}
 
@@ -328,21 +323,39 @@ func isDir(path string) (bool, error) {
 	return info.IsDir(), nil
 }
 
-func writePiece(ctx context.Context, cid cid.Cid, ppath string, bs bstore.Blockstore, batchNum int) error {
-	membs, err := collectDags(ctx, cid, bs, batchNum)
+// 深度优先算法
+func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blockstore, batchNum int) error {
+	nd, err := getNode(ctx, root, bs)
 	if err != nil {
 		return err
 	}
-
-	selcar := gocar.NewSelectiveCar(ctx, membs, []gocar.Dag{{Root: cid, Selector: allSelector()}})
 
 	f, err := os.Create(ppath)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
+	// write header
+	if err := gocar.WriteHeader(&gocar.CarHeader{
+		Roots:   []cid.Cid{root},
+		Version: 1,
+	}, f); err != nil {
+		return err
+	}
 
-	if err := selcar.Write(f); err != nil {
+	// write data
+	// write root node
+	if err := carutil.LdWrite(f, nd.Cid().Bytes(), nd.RawData()); err != nil {
+		return err
+	}
+	//fmt.Printf("cid: %s\n", nd.Cid())
+	if err := BlockWalk(ctx, nd, bs, batchNum, func(node format.Node) error {
+		if err := carutil.LdWrite(f, node.Cid().Bytes(), node.RawData()); err != nil {
+			return err
+		}
+		//fmt.Printf("cid: %s\n", node.Cid())
+		return nil
+	}); err != nil {
 		return err
 	}
 	finfo, err := f.Stat()
@@ -361,55 +374,104 @@ func writePiece(ctx context.Context, cid cid.Cid, ppath string, bs bstore.Blocks
 	return nil
 }
 
-func allSelector() ipldprime.Node {
-	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-	return ssb.ExploreRecursive(selector.RecursionLimitNone(),
-		ssb.ExploreAll(ssb.ExploreRecursiveEdge())).
-		Node()
-}
-
-func collectDags(ctx context.Context, cid cid.Cid, bs bstore.Blockstore, batchNum int) (bstore.Blockstore, error) {
-	dagServ := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
-	memstore := bstore.NewBlockstore(dss.MutexWrap(datastore.NewMapDatastore()))
-	memdag := merkledag.NewDAGService(blockservice.New(memstore, offline.Exchange(memstore)))
-
-	if err := dagWalk(ctx, cid, dagServ, batchNum, func(nd format.Node) error {
-		return memdag.Add(ctx, nd)
-	}); err != nil {
-		return nil, err
-	}
-	return memstore, nil
-}
-
-func dagWalk(ctx context.Context, cid cid.Cid, dagServ format.DAGService, batchNum int, cb func(nd format.Node) error) error {
-	node, err := dagServ.Get(ctx, cid)
+// 广度优先算法
+func WritePieceV2(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blockstore, batchNum int) error {
+	nd, err := getNode(ctx, root, bs)
 	if err != nil {
 		return err
 	}
-	if err := cb(node); err != nil {
+
+	f, err := os.Create(ppath)
+	if err != nil {
 		return err
 	}
-	links := node.Links()
-	if len(links) == 0 {
+	defer f.Close()
+	// write header
+	if err := gocar.WriteHeader(&gocar.CarHeader{
+		Roots:   []cid.Cid{root},
+		Version: 1,
+	}, f); err != nil {
+		return err
+	}
+
+	// write data
+	// write root node
+	if err := carutil.LdWrite(f, nd.Cid().Bytes(), nd.RawData()); err != nil {
+		return err
+	}
+
+	unloadedLinks := nd.Links()
+	if len(unloadedLinks) == 0 {
 		return nil
 	}
-	var wg sync.WaitGroup
-	batchchan := make(chan struct{}, batchNum)
-	wg.Add(len(links))
-	for _, link := range links {
-		go func(link *format.Link) {
+
+	for len(unloadedLinks) > 0 {
+		loadedNodes, err := BatchLoadNode(ctx, unloadedLinks, bs, batchNum)
+		if err != nil {
+			return err
+		}
+		unloadedLinks = make([]*format.Link, 0)
+		for _, nd := range loadedNodes {
+			if err := carutil.LdWrite(f, nd.Cid().Bytes(), nd.RawData()); err != nil {
+				return err
+			}
+			ndLinks := nd.Links()
+			if len(ndLinks) > 0 {
+				unloadedLinks = append(unloadedLinks, nd.Links()...)
+			}
+		}
+	}
+
+	finfo, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	carSize := finfo.Size()
+	log.Infof("car file size: %d", carSize)
+	pieceSize := padreader.PaddedSize(uint64(carSize))
+	nr := io.LimitReader(nullReader{}, int64(pieceSize)-carSize)
+	wn, err := io.Copy(f, nr)
+	if err != nil {
+		return err
+	}
+	log.Infof("padsize %d, write pad %d", int64(pieceSize)-carSize, wn)
+	return nil
+}
+
+func BatchLoadNode(ctx context.Context, unloadedLinks []*format.Link, bs bstore.Blockstore, batchNum int) ([]format.Node, error) {
+	loadedNodes := make([]format.Node, len(unloadedLinks))
+	wg := sync.WaitGroup{}
+	wg.Add(len(unloadedLinks))
+	bchan := make(chan struct{}, batchNum)
+	errmsg := make([]string, 0)
+	for i, link := range unloadedLinks {
+		go func(ctx context.Context, i int, link *format.Link, bs bstore.Blockstore) {
 			defer func() {
-				<-batchchan
+				<-bchan
 				wg.Done()
 			}()
-			batchchan <- struct{}{}
-			if err := dagWalk(ctx, link.Cid, dagServ, batchNum, cb); err != nil {
-				log.Error(err)
+			bchan <- struct{}{}
+			nd, err := getNode(ctx, link.Cid, bs)
+			if err != nil {
+				errmsg = append(errmsg, err.Error())
+			} else {
+				loadedNodes[i] = nd
 			}
-		}(link)
+		}(ctx, i, link, bs)
 	}
 	wg.Wait()
-	return nil
+	if len(errmsg) > 0 {
+		return nil, xerrors.New(strings.Join(errmsg, "\n"))
+	}
+	return loadedNodes, nil
+}
+
+func getNode(ctx context.Context, cid cid.Cid, bs bstore.Blockstore) (format.Node, error) {
+	nd, err := bs.Get(cid)
+	if err != nil {
+		return nil, err
+	}
+	return legacy.DecodeNode(ctx, nd)
 }
 
 type nullReader struct{}
@@ -420,4 +482,43 @@ func (nr nullReader) Read(b []byte) (int, error) {
 		b[i] = 0
 	}
 	return len(b), nil
+}
+
+func BlockWalk(ctx context.Context, node format.Node, bs bstore.Blockstore, batchNum int, cb func(nd format.Node) error) error {
+	links := node.Links()
+	if len(links) == 0 {
+		return nil
+	}
+	loadedNode := make([]format.Node, len(links))
+	errmsg := make([]string, 0)
+	var wg sync.WaitGroup
+	batchchan := make(chan struct{}, batchNum)
+	wg.Add(len(links))
+	for i, link := range links {
+		go func(ctx context.Context, i int, link *format.Link, bs bstore.Blockstore) {
+			defer func() {
+				<-batchchan
+				wg.Done()
+			}()
+			batchchan <- struct{}{}
+			nd, err := getNode(ctx, link.Cid, bs)
+			if err != nil {
+				errmsg = append(errmsg, err.Error())
+			}
+			loadedNode[i] = nd
+		}(ctx, i, link, bs)
+	}
+	wg.Wait()
+	if len(errmsg) > 0 {
+		return xerrors.New(strings.Join(errmsg, "\n"))
+	}
+	for _, nd := range loadedNode {
+		if err := cb(nd); err != nil {
+			return err
+		}
+		if err := BlockWalk(ctx, nd, bs, batchNum, cb); err != nil {
+			return err
+		}
+	}
+	return nil
 }

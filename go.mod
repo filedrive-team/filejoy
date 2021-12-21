@@ -5,7 +5,6 @@ go 1.16
 require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/filecoin-project/go-padreader v0.0.1
-	github.com/filecoin-project/go-state-types v0.0.0-20200903145444-247639ffa6ad
 	github.com/filedrive-team/filehelper v0.0.9
 	github.com/filedrive-team/go-ds-cluster v0.0.6
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
@@ -21,6 +20,7 @@ require (
 	github.com/ipfs/go-ipfs-blockstore v1.0.5-0.20210802214209-c56038684c45
 	github.com/ipfs/go-ipfs-exchange-offline v0.0.1
 	github.com/ipfs/go-ipld-format v0.2.0
+	github.com/ipfs/go-ipld-legacy v0.1.0
 	github.com/ipfs/go-log/v2 v2.3.0
 	github.com/ipfs/go-merkledag v0.4.1
 	github.com/ipfs/go-peertaskqueue v0.6.0 // indirect
