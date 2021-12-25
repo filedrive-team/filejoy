@@ -169,6 +169,11 @@ var DagExport = &cli.Command{
 			Aliases: []string{"p"},
 			Usage:   "filecoin piece pad",
 		},
+		&cli.IntFlag{
+			Name:  "batch",
+			Usage: "",
+			Value: 32,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
@@ -197,7 +202,7 @@ var DagExport = &cli.Command{
 		}
 		defer closer()
 
-		pb, err := api.DagExport(ctx, cid, p, cctx.Bool("pad"))
+		pb, err := api.DagExport(ctx, cid, p, cctx.Bool("pad"), cctx.Int("batch"))
 		if err != nil {
 			return err
 		}

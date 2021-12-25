@@ -183,13 +183,16 @@ type pbar struct {
 func (pb *pbar) Write(p []byte) (n int, err error) {
 	l := len(p)
 	pb.Current += int64(l)
-	if pb.Current > pb.Total {
+	if pb.Total > 0 && pb.Current > pb.Total {
 		pb.Current = pb.Total
 	}
 	return l, nil
 }
 
 func (pb *pbar) Done() bool {
+	if pb.Total < 0 {
+		return false
+	}
 	return pb.Current >= pb.Total
 }
 

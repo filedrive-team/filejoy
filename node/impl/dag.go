@@ -8,19 +8,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/filecoin-project/go-padreader"
+	"github.com/filedrive-team/filehelper/carv1"
 	"github.com/filedrive-team/filejoy/api"
 	"github.com/filedrive-team/filejoy/node"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
-	gocar "github.com/ipld/go-car"
 	ipldprime "github.com/ipld/go-ipld-prime"
 	basicnode "github.com/ipld/go-ipld-prime/node/basic"
 	"github.com/ipld/go-ipld-prime/traversal/selector"
 	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
-	"golang.org/x/xerrors"
 )
 
 type DagAPI struct {
@@ -73,43 +71,29 @@ func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan 
 	return out, nil
 }
 
-func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool) (chan api.PBar, error) {
+func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool, batchNum int) (chan api.PBar, error) {
 	pr, pw := io.Pipe()
 
 	errCh := make(chan error, 2)
-	carSize := make(chan uint64)
+
 	go func() {
 		defer func() {
 			if err := pw.Close(); err != nil {
 				errCh <- fmt.Errorf("stream flush failed: %s", err)
 			}
 			close(errCh)
-			close(carSize)
 		}()
-
-		selcar := gocar.NewSelectiveCar(ctx, a.Node.Blockstore, []gocar.Dag{{Root: c, Selector: allSelector()}})
-		preparedCar, err := selcar.Prepare()
+		carSize, err := carv1.NewBatch(ctx, a.Node.Blockstore).Write(c, pw, batchNum)
 		if err != nil {
 			errCh <- err
-			return
 		}
-		carSize <- preparedCar.Size()
-		if err := preparedCar.Dump(pw); err != nil {
-			errCh <- err
+		log.Infof("cid: %s, car size: %d", c, carSize)
+		if pad {
+			if err := carv1.PadCar(pw, int64(carSize)); err != nil {
+				errCh <- err
+			}
 		}
 	}()
-	cs := <-carSize
-	if cs == 0 {
-		return nil, xerrors.New("unable to get car size")
-	}
-	var total int64 = int64(cs)
-	var rr io.Reader = pr
-
-	if pad {
-		r, sz := padreader.New(pr, cs)
-		total = int64(sz)
-		rr = r
-	}
 
 	f, err := os.Create(path)
 	if err != nil {
@@ -117,7 +101,7 @@ func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool
 	}
 
 	pb := &pbar{
-		Total: total,
+		Total: -1,
 	}
 	iodone := make(chan struct{})
 	ioerr := make(chan error)
@@ -171,7 +155,7 @@ func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool
 		}
 	}(out, iodone, ioerr)
 	go func(iodone chan struct{}, ioerr chan error) {
-		_, err = io.Copy(io.MultiWriter(f, pb), rr)
+		_, err = io.Copy(io.MultiWriter(f, pb), pr)
 		if err != nil {
 			ioerr <- err
 			return
@@ -187,47 +171,3 @@ func allSelector() ipldprime.Node {
 		ssb.ExploreAll(ssb.ExploreRecursiveEdge())).
 		Node()
 }
-
-// func collectDags(ctx context.Context, cid cid.Cid, bs bstore.Blockstore) (bstore.Blockstore, error) {
-// 	dagServ := merkledag.NewDAGService(blockservice.New(bs, offline.Exchange(bs)))
-// 	memstore := bstore.NewBlockstore(dss.MutexWrap(datastore.NewMapDatastore()))
-// 	memdag := merkledag.NewDAGService(blockservice.New(memstore, offline.Exchange(memstore)))
-
-// 	if err := dagWalk(ctx, cid, dagServ, func(nd format.Node) error {
-// 		return memdag.Add(ctx, nd)
-// 	}); err != nil {
-// 		return nil, err
-// 	}
-// 	return memstore, nil
-// }
-
-// func dagWalk(ctx context.Context, cid cid.Cid, dagServ format.DAGService, cb func(nd format.Node) error) error {
-// 	node, err := dagServ.Get(ctx, cid)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if err := cb(node); err != nil {
-// 		return err
-// 	}
-// 	links := node.Links()
-// 	if len(links) == 0 {
-// 		return nil
-// 	}
-// 	var wg sync.WaitGroup
-// 	batchchan := make(chan struct{}, 32)
-// 	wg.Add(len(links))
-// 	for _, link := range links {
-// 		go func(link *format.Link) {
-// 			defer func() {
-// 				<-batchchan
-// 				wg.Done()
-// 			}()
-// 			batchchan <- struct{}{}
-// 			if err := dagWalk(ctx, link.Cid, dagServ, cb); err != nil {
-// 				log.Error(err)
-// 			}
-// 		}(link)
-// 	}
-// 	wg.Wait()
-// 	return nil
-// }
