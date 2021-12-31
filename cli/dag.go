@@ -165,6 +165,10 @@ var DagExport = &cli.Command{
 	Usage: "export car or padded car file",
 	Flags: []cli.Flag{
 		&cli.BoolFlag{
+			Name:  "swarm",
+			Usage: "",
+		},
+		&cli.BoolFlag{
 			Name:    "pad",
 			Aliases: []string{"p"},
 			Usage:   "filecoin piece pad",
@@ -202,7 +206,7 @@ var DagExport = &cli.Command{
 		}
 		defer closer()
 
-		pb, err := api.DagExport(ctx, cid, p, cctx.Bool("pad"), cctx.Int("batch"))
+		pb, err := api.DagExport(ctx, cid, p, cctx.Bool("pad"), cctx.Int("batch"), cctx.Bool("swarm"))
 		if err != nil {
 			return err
 		}

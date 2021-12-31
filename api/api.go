@@ -35,7 +35,7 @@ type Net interface {
 type Dag interface {
 	DagStat(context.Context, cid.Cid) (*format.NodeStat, error)
 	DagSync(context.Context, []cid.Cid, int) (chan string, error)
-	DagExport(context.Context, cid.Cid, string, bool, int) (chan PBar, error)
+	DagExport(context.Context, cid.Cid, string, bool, int, bool) (chan PBar, error)
 	DagHas(context.Context, cid.Cid) (bool, error)
 }
 
@@ -55,7 +55,7 @@ type FullNodeClient struct {
 	ID        func(context.Context) (peer.ID, error)
 	DagStat   func(context.Context, cid.Cid) (*format.NodeStat, error)
 	DagSync   func(context.Context, []cid.Cid, int) (chan string, error)
-	DagExport func(context.Context, cid.Cid, string, bool, int) (chan PBar, error)
+	DagExport func(context.Context, cid.Cid, string, bool, int, bool) (chan PBar, error)
 	DagHas    func(context.Context, cid.Cid) (bool, error)
 	Add       func(context.Context, string) (chan PBar, error)
 	Add2      func(context.Context, string, int) (chan PBar, error)
@@ -98,8 +98,8 @@ func (a *FullNodeClientApi) DagSync(ctx context.Context, cids []cid.Cid, concur 
 	return a.Emb.DagSync(ctx, cids, concur)
 }
 
-func (a *FullNodeClientApi) DagExport(ctx context.Context, cid cid.Cid, path string, pad bool, batchNum int) (chan PBar, error) {
-	return a.Emb.DagExport(ctx, cid, path, pad, batchNum)
+func (a *FullNodeClientApi) DagExport(ctx context.Context, cid cid.Cid, path string, pad bool, batchNum int, swarm bool) (chan PBar, error) {
+	return a.Emb.DagExport(ctx, cid, path, pad, batchNum, swarm)
 }
 
 func (a *FullNodeClientApi) DagHas(ctx context.Context, cid cid.Cid) (bool, error) {

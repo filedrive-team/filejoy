@@ -13,6 +13,7 @@ import (
 	"github.com/filedrive-team/filejoy/node"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
+	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
 	ipldprime "github.com/ipld/go-ipld-prime"
@@ -71,11 +72,44 @@ func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan 
 	return out, nil
 }
 
-func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool, batchNum int) (chan api.PBar, error) {
+type onlineng struct {
+	ng format.DAGService
+}
+
+func (ng *onlineng) Get(ctx context.Context, cid cid.Cid) (format.Node, error) {
+	return ng.ng.Get(ctx, cid)
+}
+
+func (ng *onlineng) GetMany(ctx context.Context, cids []cid.Cid) <-chan *format.NodeOption {
+	return ng.ng.GetMany(ctx, cids)
+}
+
+type offlineng struct {
+	ng blockstore.Blockstore
+}
+
+func (ng *offlineng) Get(ctx context.Context, cid cid.Cid) (format.Node, error) {
+	return carv1.GetNode(ctx, cid, ng.ng)
+}
+
+func (ng *offlineng) GetMany(ctx context.Context, cids []cid.Cid) <-chan *format.NodeOption {
+	return nil
+}
+
+func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool, batchNum int, swarm bool) (chan api.PBar, error) {
 	pr, pw := io.Pipe()
 
 	errCh := make(chan error, 2)
-
+	var nodeGetter format.NodeGetter
+	if swarm {
+		nodeGetter = &onlineng{
+			ng: a.Node.Dagserv,
+		}
+	} else {
+		nodeGetter = &offlineng{
+			ng: a.Node.Blockstore,
+		}
+	}
 	go func() {
 		defer func() {
 			if err := pw.Close(); err != nil {
@@ -83,7 +117,7 @@ func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool
 			}
 			close(errCh)
 		}()
-		carSize, err := carv1.NewBatch(ctx, a.Node.Blockstore).Write(c, pw, batchNum)
+		carSize, err := carv1.NewBatch(ctx, nodeGetter).Write(c, pw, batchNum)
 		if err != nil {
 			errCh <- err
 		}
