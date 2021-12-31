@@ -290,7 +290,7 @@ var DagGenPieces = &cli.Command{
 			pdir, ppath := piecePath(arr[1], fileStore)
 			fmt.Printf("will gen: %s\n", ppath)
 			if finfo, err := os.Stat(ppath); err == nil && finfo.Size() == expectSize {
-				fmt.Printf("aleady has %s, size: %d, esize: %s; will ignore", ppath, finfo.Size(), arr[2])
+				fmt.Printf("aleady has %s, size: %d, esize: %s; will ignore\n", ppath, finfo.Size(), arr[2])
 				continue
 			}
 
@@ -358,13 +358,13 @@ func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blo
 	cidSet.Add(nd.Cid())
 	//fmt.Printf("cid: %s\n", nd.Cid())
 	if err := BlockWalk(ctx, nd, bs, batchNum, func(node format.Node) error {
-		if cidSet.Has(nd.Cid()) {
+		if cidSet.Has(node.Cid()) {
 			return nil
 		}
 		if err := carutil.LdWrite(f, node.Cid().Bytes(), node.RawData()); err != nil {
 			return err
 		}
-		cidSet.Add(nd.Cid())
+		cidSet.Add(node.Cid())
 		//fmt.Printf("cid: %s\n", node.Cid())
 		return nil
 	}); err != nil {
