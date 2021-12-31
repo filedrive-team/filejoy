@@ -203,8 +203,8 @@ github.com/filecoin-project/go-state-types v0.0.0-20200903145444-247639ffa6ad/go
 github.com/filedrive-team/filehelper v0.0.2/go.mod h1:nwlxmeyGqIt2zl2XqL59ySUybmutjmEqFOYEWpfNzVg=
 github.com/filedrive-team/filehelper v0.0.4/go.mod h1:TpZS08Qcbfzc7oF07juG8RsCrg2F88cW+A+EMPP+6AA=
 github.com/filedrive-team/filehelper v0.0.9/go.mod h1:AEis9leNL2wiBOpDJrWCkw8j/MWeb8E+SJq9CQjh3Ds=
-github.com/filedrive-team/filehelper v0.0.15 h1:sW3DBzpdWyLtPLvIwqXJ++pEHANMbvFd1zPSBSMFh74=
-github.com/filedrive-team/filehelper v0.0.15/go.mod h1:6i+Ab2HADjxM7ds7m+lg/9zOxt5lrmO0LSnZraPxr6E=
+github.com/filedrive-team/filehelper v0.0.16 h1:GqETTBirUlpwYyoiIz4KAfFCzH9GQ7bpBVAXChbqaMY=
+github.com/filedrive-team/filehelper v0.0.16/go.mod h1:6i+Ab2HADjxM7ds7m+lg/9zOxt5lrmO0LSnZraPxr6E=
 github.com/filedrive-team/go-ds-cluster v0.0.2/go.mod h1:YT9FcORCaA7tAInFWIzebsIIvL+JYeVdREyMUloatkg=
 github.com/filedrive-team/go-ds-cluster v0.0.4/go.mod h1:a3eMdo+NPQPr3tsAplwCMx6cj5kYxAh0jmkzGpsNGV0=
 github.com/filedrive-team/go-ds-cluster v0.0.6-0.20211029051144-10c8cf554437/go.mod h1:nDKIwzAiGHmdkFca+z97LteDwoL31rC7sd6bLL4OTZ0=

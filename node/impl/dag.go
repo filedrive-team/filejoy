@@ -16,10 +16,6 @@ import (
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
-	ipldprime "github.com/ipld/go-ipld-prime"
-	basicnode "github.com/ipld/go-ipld-prime/node/basic"
-	"github.com/ipld/go-ipld-prime/traversal/selector"
-	"github.com/ipld/go-ipld-prime/traversal/selector/builder"
 )
 
 type DagAPI struct {
@@ -123,6 +119,7 @@ func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool
 		}
 		log.Infof("cid: %s, car size: %d", c, carSize)
 		if pad {
+			log.Infof("pad the car ")
 			if err := carv1.PadCar(pw, int64(carSize)); err != nil {
 				errCh <- err
 			}
@@ -197,11 +194,4 @@ func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool
 		iodone <- struct{}{}
 	}(iodone, ioerr)
 	return out, err
-}
-
-func allSelector() ipldprime.Node {
-	ssb := builder.NewSelectorSpecBuilder(basicnode.Prototype.Any)
-	return ssb.ExploreRecursive(selector.RecursionLimitNone(),
-		ssb.ExploreAll(ssb.ExploreRecursiveEdge())).
-		Node()
 }
