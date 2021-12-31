@@ -353,11 +353,18 @@ func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blo
 	if err := carutil.LdWrite(f, nd.Cid().Bytes(), nd.RawData()); err != nil {
 		return err
 	}
+	// set cid set to only save uniq cid to car file
+	cidSet := cid.NewSet()
+	cidSet.Add(nd.Cid())
 	//fmt.Printf("cid: %s\n", nd.Cid())
 	if err := BlockWalk(ctx, nd, bs, batchNum, func(node format.Node) error {
+		if cidSet.Has(nd.Cid()) {
+			return nil
+		}
 		if err := carutil.LdWrite(f, node.Cid().Bytes(), node.RawData()); err != nil {
 			return err
 		}
+		cidSet.Add(nd.Cid())
 		//fmt.Printf("cid: %s\n", node.Cid())
 		return nil
 	}); err != nil {
