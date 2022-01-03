@@ -8,6 +8,7 @@ require (
 	github.com/filedrive-team/filehelper v0.0.16
 	github.com/filedrive-team/go-ds-cluster v0.0.6
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
+	github.com/gin-gonic/gin v1.7.7
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
@@ -25,7 +26,7 @@ require (
 	github.com/ipfs/go-peertaskqueue v0.6.0 // indirect
 	github.com/ipfs/go-unixfs v0.2.6
 	github.com/ipld/go-car v0.3.1
-	github.com/ipld/go-ipld-prime v0.12.3
+	github.com/ipld/go-ipld-prime v0.12.3 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/libp2p/go-libp2p v0.15.1
 	github.com/libp2p/go-libp2p-circuit v0.4.0

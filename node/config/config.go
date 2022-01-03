@@ -45,6 +45,7 @@ type Config struct {
 	RPC            JSONRPC `json:"rpc"`
 	Relay          bool    `json:"relay"`
 	EnableRemoteDS bool    `json:"enable_remote_ds"`
+	GateWayPort    uint    `json:"gateway_port"`
 }
 
 func LoadOrInitConfig(path string) (*Config, error) {

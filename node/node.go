@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
 
 	pbstore "github.com/filedrive-team/filehelper/blockstore"
+	"github.com/filedrive-team/filejoy/gateway"
 	ncfg "github.com/filedrive-team/filejoy/node/config"
 	"github.com/filedrive-team/go-ds-cluster/clusterclient"
 	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
@@ -69,6 +71,7 @@ type Node struct {
 
 	Config       *ncfg.Config
 	RemotedsServ dsccore.DataNodeServer
+	GatewayServ  *http.Server
 }
 
 func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error) {
@@ -266,6 +269,33 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		remotedsServer.Serve()
 	}
 
+	// serve gateway
+	// currently only support simple file
+	var gatewayServ *http.Server
+	if cfg.GateWayPort > 0 {
+		log.Info(cfg.GateWayPort)
+		router := gateway.InitRouter(ctx, dagServ)
+
+		addr := fmt.Sprintf(":%d", cfg.GateWayPort)
+		maxHeaderBytes := 1 << 20
+
+		srv := &http.Server{
+			Addr:    addr,
+			Handler: router,
+			//ReadTimeout:    time.Duration(conf.Server.ReadTimeout * 1e9),
+			//WriteTimeout:   time.Duration(conf.Server.WriteTimeout * 1e9),
+			MaxHeaderBytes: maxHeaderBytes,
+		}
+
+		go func() {
+			// service connections
+			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("listen: %s\n", err)
+			}
+		}()
+
+	}
+
 	return &Node{
 		Dht:          ipfsdht,
 		FullRT:       frt,
@@ -276,6 +306,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		Dagserv:      dagServ,
 		Config:       cfg,
 		RemotedsServ: remotedsServer,
+		GatewayServ:  gatewayServ,
 	}, nil
 }
 
@@ -283,6 +314,12 @@ func (n *Node) Close() (err error) {
 	err = n.Host.Close()
 	if n.RemotedsServ != nil {
 		err = n.RemotedsServ.Close()
+	}
+	if n.GatewayServ != nil {
+		err = n.GatewayServ.Shutdown(context.TODO())
+		if err == nil {
+			log.Info("Gateway Server exiting")
+		}
 	}
 	return
 }
