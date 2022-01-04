@@ -33,7 +33,7 @@ type Net interface {
 }
 
 type Dag interface {
-	DagStat(context.Context, cid.Cid) (*format.NodeStat, error)
+	DagStat(context.Context, cid.Cid, uint) (*format.NodeStat, error)
 	DagSync(context.Context, []cid.Cid, int) (chan string, error)
 	DagExport(context.Context, cid.Cid, string, bool, int, bool) (chan PBar, error)
 	DagHas(context.Context, cid.Cid) (bool, error)
@@ -53,7 +53,7 @@ type FullNodeClient struct {
 	NetDisconnect    func(context.Context, peer.ID) error
 
 	ID        func(context.Context) (peer.ID, error)
-	DagStat   func(context.Context, cid.Cid) (*format.NodeStat, error)
+	DagStat   func(context.Context, cid.Cid, uint) (*format.NodeStat, error)
 	DagSync   func(context.Context, []cid.Cid, int) (chan string, error)
 	DagExport func(context.Context, cid.Cid, string, bool, int, bool) (chan PBar, error)
 	DagHas    func(context.Context, cid.Cid) (bool, error)
@@ -90,8 +90,8 @@ func (a *FullNodeClientApi) NetDisconnect(ctx context.Context, p peer.ID) error 
 	return a.Emb.NetDisconnect(ctx, p)
 }
 
-func (a *FullNodeClientApi) DagStat(ctx context.Context, cid cid.Cid) (*format.NodeStat, error) {
-	return a.Emb.DagStat(ctx, cid)
+func (a *FullNodeClientApi) DagStat(ctx context.Context, cid cid.Cid, timeout uint) (*format.NodeStat, error) {
+	return a.Emb.DagStat(ctx, cid, timeout)
 }
 
 func (a *FullNodeClientApi) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan string, error) {

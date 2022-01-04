@@ -26,9 +26,11 @@ func (a *DagAPI) DagHas(ctx context.Context, cid cid.Cid) (bool, error) {
 	return a.Node.Blockstore.Has(cid)
 }
 
-func (a *DagAPI) DagStat(ctx context.Context, cid cid.Cid) (*format.NodeStat, error) {
+func (a *DagAPI) DagStat(ctx context.Context, cid cid.Cid, timeout uint) (*format.NodeStat, error) {
 	dagServ := merkledag.NewDAGService(blockservice.New(a.Node.Blockstore, a.Node.Bitswap))
-	dagNode, err := dagServ.Get(ctx, cid)
+	ctxx, cancel := context.WithTimeout(ctx, time.Duration(timeout*1e9))
+	defer cancel()
+	dagNode, err := dagServ.Get(ctxx, cid)
 	if err != nil {
 		return nil, err
 	}

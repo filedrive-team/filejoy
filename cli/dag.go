@@ -75,7 +75,13 @@ var DagHas = &cli.Command{
 var DagStat = &cli.Command{
 	Name:  "stat",
 	Usage: "print dag info",
-	Flags: []cli.Flag{},
+	Flags: []cli.Flag{
+		&cli.IntFlag{
+			Name:  "timeout",
+			Usage: "",
+			Value: 15,
+		},
+	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
 
@@ -90,7 +96,7 @@ var DagStat = &cli.Command{
 		}
 		defer closer()
 
-		stat, err := api.DagStat(ctx, cid)
+		stat, err := api.DagStat(ctx, cid, cctx.Uint("timeout"))
 		if err != nil {
 			return err
 		}
