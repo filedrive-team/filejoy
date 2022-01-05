@@ -1,6 +1,7 @@
 package impl
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -11,11 +12,14 @@ import (
 	"github.com/filedrive-team/filehelper/carv1"
 	"github.com/filedrive-team/filejoy/api"
 	"github.com/filedrive-team/filejoy/node"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-cid"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
 	"github.com/ipfs/go-merkledag"
+	gocar "github.com/ipld/go-car"
+	carutil "github.com/ipld/go-car/util"
 )
 
 type DagAPI struct {
@@ -194,6 +198,105 @@ func (a *DagAPI) DagExport(ctx context.Context, c cid.Cid, path string, pad bool
 			return
 		}
 		iodone <- struct{}{}
+	}(iodone, ioerr)
+	return out, err
+}
+
+func (a *DagAPI) DagImport(ctx context.Context, targetPath string) (chan api.PBar, error) {
+	finfo, err := os.Stat(targetPath)
+	if err != nil {
+		return nil, err
+	}
+
+	pb := &pbar{
+		Total: finfo.Size(),
+	}
+	iodone := make(chan struct{})
+	ioerr := make(chan error)
+	out := make(chan api.PBar)
+	closeOut := sync.Once{}
+	closefunc := func() {
+		closeOut.Do(func() {
+			close(out)
+		})
+	}
+	go func(p chan api.PBar, iodone chan struct{}, ioerr chan error) {
+		tic := time.NewTicker(time.Millisecond * 50)
+		for {
+			select {
+			case <-ctx.Done():
+				out <- api.PBar{
+					Total:   pb.Total,
+					Current: pb.Current,
+					Err:     ctx.Err().Error(),
+				}
+				closefunc()
+				return
+			case <-iodone:
+				out <- api.PBar{
+					Total:   pb.Total,
+					Current: pb.Total,
+				}
+				closefunc()
+				return
+			case e := <-ioerr:
+				out <- api.PBar{
+					Total:   pb.Total,
+					Current: pb.Current,
+					Err:     e.Error(),
+				}
+				closefunc()
+			case <-tic.C:
+				if pb.Done() {
+					out <- api.PBar{
+						Total:   pb.Total,
+						Current: pb.Current,
+					}
+					return
+				}
+				out <- api.PBar{
+					Total:   pb.Total,
+					Current: pb.Current,
+				}
+			}
+
+		}
+	}(out, iodone, ioerr)
+	go func(iodone chan struct{}, ioerr chan error) {
+		f, err := os.OpenFile(targetPath, os.O_RDWR, 0644)
+		if err != nil {
+			ioerr <- err
+			return
+		}
+		defer f.Close()
+
+		br := bufio.NewReader(io.TeeReader(f, pb))
+		_, err = gocar.ReadHeader(br)
+		if err != nil {
+			ioerr <- err
+			return
+		}
+		for {
+			cid, data, err := carutil.ReadNode(br)
+			if err != nil {
+				if err == io.EOF {
+					iodone <- struct{}{}
+					break
+				}
+				ioerr <- err
+				return
+			}
+			bn, err := blocks.NewBlockWithCid(data, cid)
+			if err != nil {
+				ioerr <- err
+				return
+			}
+			if err = a.Node.Blockstore.Put(bn); err != nil {
+				ioerr <- err
+				return
+			}
+		}
+
 	}(iodone, ioerr)
 	return out, err
 }

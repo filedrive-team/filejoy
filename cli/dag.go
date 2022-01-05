@@ -35,6 +35,7 @@ var DagCmd = &cli.Command{
 		DagStat,
 		DagSync,
 		DagExport,
+		DagImport,
 		DagHas,
 		DagGenPieces,
 	},
@@ -160,6 +161,67 @@ var DagSync = &cli.Command{
 		}
 		for msg := range msgch {
 			fmt.Println(msg)
+		}
+
+		return nil
+	},
+}
+
+var DagImport = &cli.Command{
+	Name:  "import",
+	Usage: "import car file",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "f",
+			Usage: "",
+		},
+		&cli.StringFlag{
+			Name:  "filestore",
+			Usage: "",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+		args := cctx.Args().Slice()
+		cidsFilePath := cctx.String("f")
+		filestorePath := cctx.String("filestore")
+
+		curdir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if cidsFilePath != "" && filestorePath != "" {
+			if bs, err := ioutil.ReadFile(cidsFilePath); err == nil {
+				cidlist := strings.Split(string(bs), "\n")
+				for _, cidstr := range cidlist {
+					cidstr = strings.TrimSpace(cidstr)
+					if cidstr != "" {
+						_, cidPath := piecePath(cidstr, filestorePath)
+						args = append(args, cidPath)
+					}
+				}
+			}
+		}
+
+		api, closer, err := GetAPI(cctx)
+		if err != nil {
+			return err
+		}
+		defer closer()
+
+		for _, carPath := range args {
+			if !strings.HasPrefix(carPath, "/") {
+				carPath = filepath.Join(curdir, carPath)
+			}
+			pb, err := api.DagImport(ctx, carPath)
+			if err != nil {
+				log.Error(err)
+				continue
+			}
+			err = PrintProgress(pb)
+			if err != nil {
+				log.Error(err)
+			}
 		}
 
 		return nil
