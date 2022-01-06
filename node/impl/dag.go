@@ -295,7 +295,7 @@ func (a *DagAPI) DagImport(ctx context.Context, targetPath string) (chan api.PBa
 				return
 			}
 		}
-
+		iodone <- struct{}{}
 	}(iodone, ioerr)
 	return out, err
 }
