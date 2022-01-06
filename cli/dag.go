@@ -228,11 +228,19 @@ var DagImport = &cli.Command{
 				carPath = filepath.Join(curdir, carPath)
 			}
 			log.Infof("start to import %s", carPath)
-			_, err := api.DagImport(ctx, carPath)
+			pb, err := api.DagImport(ctx, carPath)
 			if err != nil {
 				log.Error(err)
 				continue
 			}
+			for pbinfo := range pb {
+				if pbinfo.Err != "" {
+					log.Warn(pbinfo.Err)
+					break
+				}
+				fmt.Printf("progress: total %d | current %d | %d \n\r", pbinfo.Total, pbinfo.Current, pbinfo.Current/(1<<30))
+			}
+
 			if deleteSource {
 				if err = os.Remove(carPath); err != nil {
 					log.Warn(err)
