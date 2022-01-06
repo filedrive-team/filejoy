@@ -228,7 +228,6 @@ func (a *DagAPI) DagImport(ctx context.Context, targetPath string) (chan api.PBa
 				out <- api.PBar{
 					Total:   pb.Total,
 					Current: pb.Current,
-					Err:     ctx.Err().Error(),
 				}
 				closefunc()
 				return

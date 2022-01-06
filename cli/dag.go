@@ -179,12 +179,18 @@ var DagImport = &cli.Command{
 			Name:  "filestore",
 			Usage: "",
 		},
+		&cli.BoolFlag{
+			Name:  "delete-source",
+			Value: false,
+			Usage: "delete the car file been imported",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
 		args := cctx.Args().Slice()
 		cidsFilePath := cctx.String("f")
 		filestorePath := cctx.String("filestore")
+		deleteSource := cctx.Bool("delete-source")
 
 		curdir, err := os.Getwd()
 		if err != nil {
@@ -197,6 +203,14 @@ var DagImport = &cli.Command{
 					cidstr = strings.TrimSpace(cidstr)
 					if cidstr != "" {
 						_, cidPath := piecePath(cidstr, filestorePath)
+						// check if path exists
+						if !fileExist(cidPath) {
+							cidPath = cidPath + ".car"
+						}
+						if !fileExist(cidPath) {
+							log.Infof("piece not exist: %s", cidPath)
+							continue
+						}
 						args = append(args, cidPath)
 					}
 				}
@@ -213,6 +227,7 @@ var DagImport = &cli.Command{
 			if !strings.HasPrefix(carPath, "/") {
 				carPath = filepath.Join(curdir, carPath)
 			}
+			log.Infof("start to import %s", carPath)
 			pb, err := api.DagImport(ctx, carPath)
 			if err != nil {
 				log.Error(err)
@@ -221,11 +236,26 @@ var DagImport = &cli.Command{
 			err = PrintProgress(pb)
 			if err != nil {
 				log.Error(err)
+				continue
 			}
+			if deleteSource {
+				if err = os.Remove(carPath); err != nil {
+					log.Warn(err)
+				}
+			}
+			log.Infof("end with import %s", carPath)
 		}
 
-		return nil
+		return err
 	},
+}
+
+func fileExist(par string) bool {
+	_, err := os.Stat(par)
+	if err == nil {
+		return true
+	}
+	return false
 }
 
 var DagExport = &cli.Command{

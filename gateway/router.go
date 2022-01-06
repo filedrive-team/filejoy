@@ -27,7 +27,7 @@ func InitRouter(ctx context.Context, dagServ format.DAGService) *gin.Engine {
 
 	r.GET("/ipfs/:cid", func(c *gin.Context) {
 		cidstr := c.Param("cid")
-		log.Info("gateway search cid: %s", cidstr)
+		log.Infof("gateway search cid: %s", cidstr)
 		cid, err := cid.Decode(cidstr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("invalid cid: %s", cidstr))
