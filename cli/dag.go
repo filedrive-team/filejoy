@@ -228,12 +228,7 @@ var DagImport = &cli.Command{
 				carPath = filepath.Join(curdir, carPath)
 			}
 			log.Infof("start to import %s", carPath)
-			pb, err := api.DagImport(ctx, carPath)
-			if err != nil {
-				log.Error(err)
-				continue
-			}
-			err = PrintProgress(pb)
+			_, err := api.DagImport(ctx, carPath)
 			if err != nil {
 				log.Error(err)
 				continue
@@ -252,10 +247,7 @@ var DagImport = &cli.Command{
 
 func fileExist(par string) bool {
 	_, err := os.Stat(par)
-	if err == nil {
-		return true
-	}
-	return false
+	return err == nil
 }
 
 var DagExport = &cli.Command{
