@@ -15,6 +15,7 @@ import (
 	"github.com/filecoin-project/go-padreader"
 	"github.com/filedrive-team/go-ds-cluster/clusterclient"
 	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
 	dsmount "github.com/ipfs/go-datastore/mount"
@@ -36,6 +37,7 @@ var DagCmd = &cli.Command{
 		DagSync,
 		DagExport,
 		DagImport,
+		DagImport2,
 		DagHas,
 		DagGenPieces,
 	},
@@ -233,12 +235,10 @@ var DagImport = &cli.Command{
 				log.Error(err)
 				continue
 			}
-			for pbinfo := range pb {
-				if pbinfo.Err != "" {
-					log.Warn(pbinfo.Err)
-					break
-				}
-				fmt.Printf("progress: total %d | current %d | %d \n\r", pbinfo.Total, pbinfo.Current, pbinfo.Current/(1<<30))
+			err = PrintProgress(pb)
+			if err != nil {
+				log.Error(err)
+				continue
 			}
 
 			if deleteSource {
@@ -247,6 +247,130 @@ var DagImport = &cli.Command{
 				}
 			}
 			log.Infof("end with import %s", carPath)
+		}
+
+		return err
+	},
+}
+
+var DagImport2 = &cli.Command{
+	Name:  "import2",
+	Usage: "import car file",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:  "f",
+			Usage: "",
+		},
+		&cli.StringFlag{
+			Name:  "filestore",
+			Usage: "",
+		},
+		&cli.BoolFlag{
+			Name:  "delete-source",
+			Value: false,
+			Usage: "delete the car file been imported",
+		},
+		&cli.StringFlag{
+			Name:    "dscluster",
+			Aliases: []string{"dsc"},
+			Usage:   "",
+		},
+	},
+	Action: func(cctx *cli.Context) error {
+		ctx := ReqContext(cctx)
+		args := cctx.Args().Slice()
+		cidsFilePath := cctx.String("f")
+		filestorePath := cctx.String("filestore")
+		deleteSource := cctx.Bool("delete-source")
+
+		curdir, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if cidsFilePath != "" && filestorePath != "" {
+			if bs, err := ioutil.ReadFile(cidsFilePath); err == nil {
+				cidlist := strings.Split(string(bs), "\n")
+				for _, cidstr := range cidlist {
+					cidstr = strings.TrimSpace(cidstr)
+					if cidstr != "" {
+						_, cidPath := piecePath(cidstr, filestorePath)
+						// check if path exists
+						if !fileExist(cidPath) {
+							cidPath = cidPath + ".car"
+						}
+						if !fileExist(cidPath) {
+							log.Infof("piece not exist: %s", cidPath)
+							continue
+						}
+						args = append(args, cidPath)
+					}
+				}
+			}
+		}
+		var cds datastore.Datastore
+		dsclustercfgpath := cctx.String("dscluster")
+		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
+		if err != nil {
+			return err
+		}
+
+		cds, err = clusterclient.NewClusterClient(ctx, dcfg)
+		if err != nil {
+			return err
+		}
+		cds = dsmount.New([]dsmount.Mount{
+			{
+				Prefix:    bstore.BlockPrefix,
+				Datastore: cds,
+			},
+		})
+		blkst := bstore.NewBlockstore(cds.(*dsmount.Datastore))
+
+		for _, carPath := range args {
+			if !strings.HasPrefix(carPath, "/") {
+				carPath = filepath.Join(curdir, carPath)
+			}
+			err = func(carPath string, blkst bstore.Blockstore, deleteSource bool) error {
+				log.Infof("start to import %s", carPath)
+				f, err := os.OpenFile(carPath, os.O_RDWR, 0644)
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+
+				br := bufio.NewReader(f)
+				_, err = gocar.ReadHeader(br)
+				if err != nil {
+					return err
+				}
+				for {
+					cid, data, err := carutil.ReadNode(br)
+					if err != nil {
+						if err == io.EOF {
+							break
+						}
+						return err
+					}
+					bn, err := blocks.NewBlockWithCid(data, cid)
+					if err != nil {
+						return err
+					}
+					if err = blkst.Put(bn); err != nil {
+						return err
+					}
+				}
+
+				if deleteSource {
+					if err = os.Remove(carPath); err != nil {
+						log.Warn(err)
+					}
+				}
+				log.Infof("end with import %s", carPath)
+				return err
+			}(carPath, blkst, deleteSource)
+			if err != nil {
+				log.Error(err)
+			}
 		}
 
 		return err
