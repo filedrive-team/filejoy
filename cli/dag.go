@@ -25,6 +25,7 @@ import (
 	gocar "github.com/ipld/go-car"
 	carutil "github.com/ipld/go-car/util"
 	"github.com/mitchellh/go-homedir"
+	"github.com/schollz/progressbar/v3"
 	"github.com/urfave/cli/v2"
 	"golang.org/x/xerrors"
 )
@@ -337,8 +338,16 @@ var DagImport2 = &cli.Command{
 					return err
 				}
 				defer f.Close()
+				finfo, err := f.Stat()
+				if err != nil {
+					return err
+				}
+				bar := progressbar.DefaultBytes(
+					finfo.Size(),
+					"importing",
+				)
 
-				br := bufio.NewReader(f)
+				br := bufio.NewReader(io.TeeReader(f, bar))
 				_, err = gocar.ReadHeader(br)
 				if err != nil {
 					return err
