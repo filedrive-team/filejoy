@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/filedrive-team/filehelper/carv1"
@@ -45,30 +46,104 @@ func (a *DagAPI) DagStat(ctx context.Context, cid cid.Cid, timeout uint) (*forma
 	return stat, nil
 }
 
+// func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan string, error) {
+// 	var concurOption merkledag.WalkOption = merkledag.Concurrent()
+// 	if concur > 32 {
+// 		concurOption = merkledag.Concurrency(concur)
+// 	}
+// 	out := make(chan string)
+// 	dagServ := merkledag.NewDAGService(blockservice.New(a.Node.Blockstore, a.Node.Bitswap))
+// 	go func() {
+// 		var err error
+// 		for _, cc := range cids {
+// 			err = merkledag.Walk(ctx, dagServ.GetLinks, cc, func(cid cid.Cid) bool {
+// 				out <- cid.String()
+// 				return true
+// 			}, concurOption, merkledag.OnError(func(c cid.Cid, err error) error {
+// 				if err != nil {
+// 					out <- fmt.Sprintf("Error: %s, %s", c, err)
+// 				}
+// 				return nil
+// 			}))
+// 		}
+// 		if err != nil {
+// 			out <- err.Error()
+// 		}
+// 		close(out)
+// 	}()
+
+// 	return out, nil
+// }
+
 func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan string, error) {
-	var concurOption merkledag.WalkOption = merkledag.Concurrent()
-	if concur > 32 {
-		concurOption = merkledag.Concurrency(concur)
+	if concur <= 0 {
+		concur = 1
 	}
 	out := make(chan string)
+	doneSignal := make(chan struct{})
+	cidsToLoad := make(chan cid.Cid)
 	dagServ := merkledag.NewDAGService(blockservice.New(a.Node.Blockstore, a.Node.Bitswap))
+	totalCids := int32(len(cids))
+	numLoaded := int32(0)
+	var cds sync.Once
+	syncDone := func() {
+		cds.Do(func() {
+			close(doneSignal)
+		})
+	}
 	go func() {
-		var err error
-		for _, cc := range cids {
-			err = merkledag.Walk(ctx, dagServ.GetLinks, cc, func(cid cid.Cid) bool {
-				out <- cid.String()
-				return true
-			}, concurOption, merkledag.OnError(func(c cid.Cid, err error) error {
-				if err != nil {
-					out <- fmt.Sprintf("Error: %s, %s", c, err)
+		defer close(out)
+		var wg sync.WaitGroup
+		wg.Add(concur)
+		for i := 0; i < concur; i++ {
+			go func(grid int) {
+				defer wg.Done()
+				for {
+					select {
+					case <-ctx.Done():
+						out <- ctx.Err().Error()
+						//log.Info("context done")
+						return
+					case <-doneSignal:
+						return
+					case cc := <-cidsToLoad:
+						//log.Infof("grid: %d got %s", grid, cc)
+						nd, err := dagServ.Get(ctx, cc)
+						if err != nil {
+							out <- err.Error()
+						} else {
+							links := nd.Links()
+							numlink := len(links)
+							//log.Infof("new links: %d", numlink)
+							if numlink > 0 {
+								atomic.AddInt32(&totalCids, int32(numlink))
+								go func() {
+									for _, link := range links {
+										cidsToLoad <- link.Cid
+									}
+								}()
+							}
+							out <- nd.Cid().String()
+						}
+						atomic.AddInt32(&numLoaded, 1)
+						nl := atomic.LoadInt32(&numLoaded)
+						tc := atomic.LoadInt32(&totalCids)
+						//log.Infof("numLoaded cids: %d, total cids: %d", nl, tc)
+						if nl == tc {
+							syncDone()
+							return
+						}
+					}
+
 				}
-				return nil
-			}))
+			}(i)
 		}
-		if err != nil {
-			out <- err.Error()
+		wg.Wait()
+	}()
+	go func() {
+		for _, cc := range cids {
+			cidsToLoad <- cc
 		}
-		close(out)
 	}()
 
 	return out, nil
