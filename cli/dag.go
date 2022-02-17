@@ -356,9 +356,9 @@ var DagImport2 = &cli.Command{
 					cid, data, err := carutil.ReadNode(br)
 					if err != nil {
 						if err == io.EOF {
-							break
+							log.Error(err)
 						}
-						return err
+						break
 					}
 					bn, err := blocks.NewBlockWithCid(data, cid)
 					if err != nil {
