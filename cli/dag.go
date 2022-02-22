@@ -353,7 +353,7 @@ var DagImport2 = &cli.Command{
 					return err
 				}
 				for {
-					cid, data, err := carutil.ReadNode(br)
+					cid, data, err := readDagNode(br)
 					if err != nil {
 						if err == io.EOF {
 							log.Error(err)
@@ -384,6 +384,17 @@ var DagImport2 = &cli.Command{
 
 		return err
 	},
+}
+
+func readDagNode(r *bufio.Reader) (id cid.Cid, data []byte, err error) {
+	defer func() {
+		if msg := recover(); msg != nil {
+			log.Errorf("Recovered at:  %s", msg)
+			err = xerrors.Errorf("%s", msg)
+		}
+	}()
+	id, data, err = carutil.ReadNode(r)
+	return
 }
 
 func fileExist(par string) bool {
