@@ -157,13 +157,14 @@ var DagSync = &cli.Command{
 			return err
 		}
 		defer closer()
-
-		msgch, err := api.DagSync(ctx, cids, cctx.Int("concurrent"))
-		if err != nil {
-			return err
-		}
-		for msg := range msgch {
-			fmt.Println(msg)
+		for _, item := range cids {
+			msgch, err := api.DagSync(ctx, []cid.Cid{item}, cctx.Int("concurrent"))
+			if err != nil {
+				return err
+			}
+			for msg := range msgch {
+				fmt.Println(msg)
+			}
 		}
 
 		return nil
