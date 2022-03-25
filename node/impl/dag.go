@@ -108,10 +108,23 @@ func (a *DagAPI) DagSync(ctx context.Context, cids []cid.Cid, concur int) (chan 
 						return
 					case cc := <-cidsToLoad:
 						//log.Infof("grid: %d got %s", grid, cc)
-						nd, err := dagServ.Get(ctx, cc)
+						var nd format.Node
+						var err error
+						var success bool
+						nd, err = dagServ.Get(ctx, cc)
 						if err != nil {
-							out <- err.Error()
+							// try get dag one more time
+							nd, err = dagServ.Get(ctx, cc)
+							if err != nil {
+								out <- fmt.Sprintf("Failed to get %s, error: %s", cc, err)
+							} else {
+								success = true
+							}
+
 						} else {
+							success = true
+						}
+						if success {
 							links := nd.Links()
 							numlink := len(links)
 							//log.Infof("new links: %d", numlink)
