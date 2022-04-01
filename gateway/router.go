@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -28,6 +30,22 @@ func InitRouter(ctx context.Context, dagServ format.DAGService) *gin.Engine {
 	r.GET("/ipfs/:cid", func(c *gin.Context) {
 		cidstr := c.Param("cid")
 		log.Infof("gateway search cid: %s", cidstr)
+		defer func() {
+			// maybe need to relay cid to local ipfs
+			relayApi := os.Getenv("IPFSRelayAPI")
+			go func() {
+				if relayApi != "" && strings.HasPrefix(relayApi, "http") {
+					p := fmt.Sprintf("%s/api/v0/cat", relayApi)
+					log.Info(p)
+					args := make(map[string][]string)
+					args["arg"] = []string{cidstr}
+					log.Info(args)
+					if _, err := http.PostForm(p, url.Values(args)); err != nil {
+						log.Warn(err)
+					}
+				}
+			}()
+		}()
 		cid, err := cid.Decode(cidstr)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, fmt.Sprintf("invalid cid: %s", cidstr))
@@ -67,6 +85,7 @@ func InitRouter(ctx context.Context, dagServ format.DAGService) *gin.Engine {
 			R: fdr,
 			N: dend - dstart + 1,
 		}, exh)
+
 	})
 
 	return r
