@@ -472,6 +472,9 @@ var DagGenPieces = &cli.Command{
 			Value: 32,
 			Usage: "",
 		},
+		&cli.BoolFlag{
+			Name: "flat-path",
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
@@ -485,6 +488,7 @@ var DagGenPieces = &cli.Command{
 			log.Info("usage: filejoy dag gen-pieces [input-file] [path-to-filestore]")
 			return err
 		}
+		var flatPath = cctx.Bool("flat-path")
 		var batchNum = cctx.Int("batch")
 		var cds datastore.Datastore
 		dsclustercfgpath := cctx.String("dscluster")
@@ -534,7 +538,12 @@ var DagGenPieces = &cli.Command{
 			if err != nil {
 				return err
 			}
-			pdir, ppath := piecePath(arr[1], fileStore)
+			var pdir, ppath string
+			if flatPath {
+				pdir, ppath = flatPiecePath(arr[1], fileStore)
+			} else {
+				pdir, ppath = piecePath(arr[1], fileStore)
+			}
 			fmt.Printf("will gen: %s\n", ppath)
 			if finfo, err := os.Stat(ppath); err == nil && finfo.Size() == expectSize {
 				fmt.Printf("aleady has %s, size: %d, esize: %s; will ignore\n", ppath, finfo.Size(), arr[2])
@@ -554,6 +563,12 @@ var DagGenPieces = &cli.Command{
 		return nil
 
 	},
+}
+
+func flatPiecePath(piececid string, filestore string) (dir string, path string) {
+	dir = filestore
+	path = filepath.Join(dir, piececid)
+	return
 }
 
 func piecePath(piececid string, filestore string) (dir string, path string) {
