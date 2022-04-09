@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/filedrive-team/filehelper"
+	"github.com/filedrive-team/filehelper/dataset"
 	"github.com/ipfs/go-cid"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pierrec/lz4/v4"
@@ -249,4 +252,54 @@ func writeSlice(lines []string, fname string) error {
 	}
 	targetpath := filepath.Join(cw, fname)
 	return os.WriteFile(targetpath, []byte(strings.Join(lines, "")), 0644)
+}
+
+var importDatasetCmd = &cli.Command{
+	Name:  "import-dataset",
+	Usage: "import files from the specified dataset",
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "dscluster",
+			Aliases: []string{"dsc"},
+			Usage:   "",
+		},
+		&cli.IntFlag{
+			Name:  "retry",
+			Value: 5,
+			Usage: "retry write file to datastore",
+		},
+		&cli.IntFlag{
+			Name:  "retry-wait",
+			Value: 1,
+			Usage: "sleep time before a retry",
+		},
+		&cli.IntFlag{
+			Name:  "parallel",
+			Value: 6,
+			Usage: "specify batch job number",
+		},
+		&cli.IntFlag{
+			Name:    "batch-read-num",
+			Aliases: []string{"br"},
+			Value:   32,
+			Usage:   "specify batch read num",
+		},
+	},
+	Action: func(c *cli.Context) (err error) {
+		ctx := context.Background()
+		dscluster := c.String("dscluster-cfg")
+		parallel := c.Int("parallel")
+		batchReadNum := c.Int("batch-read-num")
+
+		targetPath := c.Args().First()
+		targetPath, err = homedir.Expand(targetPath)
+		if err != nil {
+			return err
+		}
+		if !filehelper.ExistDir(targetPath) {
+			return xerrors.Errorf("Unexpected! The path to dataset does not exist")
+		}
+
+		return dataset.Import(ctx, targetPath, dscluster, parallel, batchReadNum)
+	},
 }

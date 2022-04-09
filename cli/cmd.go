@@ -26,6 +26,7 @@ var Commands = []*cli.Command{
 	Add2Cmd,
 	GetCmd,
 	SyncssCmd,
+	importDatasetCmd,
 	WithCategory("network", NetCmd),
 	WithCategory("dag", DagCmd),
 }
