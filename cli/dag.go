@@ -475,6 +475,10 @@ var DagGenPieces = &cli.Command{
 		&cli.BoolFlag{
 			Name: "flat-path",
 		},
+		&cli.BoolFlag{
+			Name:  "pad",
+			Value: true,
+		},
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
@@ -488,6 +492,7 @@ var DagGenPieces = &cli.Command{
 			log.Info("usage: filejoy dag gen-pieces [input-file] [path-to-filestore]")
 			return err
 		}
+		var shouldPad = cctx.Bool("pad")
 		var flatPath = cctx.Bool("flat-path")
 		var batchNum = cctx.Int("batch")
 		var cds datastore.Datastore
@@ -554,7 +559,7 @@ var DagGenPieces = &cli.Command{
 				return err
 			}
 
-			if err = writePieceV3(ctx, cid, ppath, blkst, batchNum); err != nil {
+			if err = writePieceV3(ctx, cid, ppath, blkst, batchNum, shouldPad); err != nil {
 				log.Error("%s write piece failed: %s", cid, err)
 				continue
 			}
@@ -592,7 +597,7 @@ func isDir(path string) (bool, error) {
 }
 
 // 深度优先算法
-func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blockstore, batchNum int) error {
+func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blockstore, batchNum int, shouldPad bool) error {
 	nd, err := getNode(ctx, root, bs)
 	if err != nil {
 		return err
@@ -639,13 +644,15 @@ func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blo
 	}
 	carSize := finfo.Size()
 	log.Infof("car file size: %d", carSize)
-	pieceSize := padreader.PaddedSize(uint64(carSize))
-	nr := io.LimitReader(nullReader{}, int64(pieceSize)-carSize)
-	wn, err := io.Copy(f, nr)
-	if err != nil {
-		return err
+	if shouldPad {
+		pieceSize := padreader.PaddedSize(uint64(carSize))
+		nr := io.LimitReader(nullReader{}, int64(pieceSize)-carSize)
+		wn, err := io.Copy(f, nr)
+		if err != nil {
+			return err
+		}
+		log.Infof("padsize %d, write pad %d, piece size: %d", int64(pieceSize)-carSize, wn, pieceSize)
 	}
-	log.Infof("padsize %d, write pad %d", int64(pieceSize)-carSize, wn)
 	return nil
 }
 
