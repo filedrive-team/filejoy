@@ -6,23 +6,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path/filepath"
 	"time"
 
-	pbstore "github.com/filedrive-team/filehelper/blockstore"
+	"github.com/filedag-project/trans"
 	"github.com/filedrive-team/filejoy/gateway"
 	ncfg "github.com/filedrive-team/filejoy/node/config"
-	"github.com/filedrive-team/go-ds-cluster/clusterclient"
-	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
 	dsccore "github.com/filedrive-team/go-ds-cluster/core"
-	"github.com/filedrive-team/go-ds-cluster/p2p/remoteds"
-	"github.com/filedrive-team/go-ds-cluster/remoteclient"
 	"github.com/ipfs/go-bitswap"
 	bsnet "github.com/ipfs/go-bitswap/network"
 	"github.com/ipfs/go-blockservice"
 	"github.com/ipfs/go-datastore"
-	dsmount "github.com/ipfs/go-datastore/mount"
 	levelds "github.com/ipfs/go-ds-leveldb"
 	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
@@ -41,7 +35,6 @@ import (
 	"github.com/libp2p/go-libp2p-kad-dht/fullrt"
 	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
 	"github.com/multiformats/go-multiaddr"
-	badgerds "github.com/textileio/go-ds-badger3"
 	"golang.org/x/xerrors"
 )
 
@@ -177,79 +170,10 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		return nil, xerrors.Errorf("constructing fullrt: %w", err)
 	}
 
-	var cds datastore.Datastore
-	dsclustercfgpath := filepath.Join(repoPath, cfg.DSClusterConf)
-	remotedscfgpath := filepath.Join(repoPath, cfg.RemoteDSConf)
-	_, dscerr := os.Stat(dsclustercfgpath)
-	_, rdserr := os.Stat(remotedscfgpath)
-	useRemoteStore := false
-	if dscerr == nil {
-		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
-		if err != nil {
-			return nil, err
-		}
-
-		cds, err = clusterclient.NewClusterClient(ctx, dcfg)
-		if err != nil {
-			return nil, err
-		}
-		log.Info("use dscluster as blockstore")
-	} else if rdserr == nil {
-		rcfg, err := remoteclient.ReadConfig(remotedscfgpath)
-		if err != nil {
-			return nil, err
-		}
-		h, err := remoteclient.HostForRemoteClient(rcfg)
-		if err != nil {
-			return nil, err
-		}
-		cds, err = remoteclient.NewRemoteStore(ctx, h, rcfg.Target, rcfg.Timeout, rcfg.AccessToken)
-		if err != nil {
-			return nil, err
-		}
-		useRemoteStore = true
-		log.Info("use remoteds as blockstore")
-	} else {
-		if os.IsNotExist(dscerr) && os.IsNotExist(rdserr) {
-			p := filepath.Join(repoPath, cfg.Blockstore)
-			if err := os.MkdirAll(p, 0755); err != nil {
-				return nil, err
-			}
-			opts := badgerds.DefaultOptions
-			cds, err = badgerds.NewDatastore(p, &opts)
-			if err != nil {
-				return nil, err
-			}
-			log.Info("use badger as blockstore")
-			// p := filepath.Join(repoPath, cfg.Blockstore)
-			// shardFunc, err := flatfs.ParseShardFunc("/repo/flatfs/shard/v1/next-to-last/2")
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// cds, err = flatfs.CreateOrOpen(p, shardFunc, true)
-			// if err != nil {
-			// 	return nil, err
-			// }
-
-		} else {
-			return nil, dscerr
-		}
-	}
-	if !useRemoteStore {
-		cds = dsmount.New([]dsmount.Mount{
-			{
-				Prefix:    blockstore.BlockPrefix,
-				Datastore: cds,
-			},
-		})
-	}
-
 	var blkst blockstore.Blockstore
-	if useRemoteStore {
-		blkst = blockstore.NewBlockstore(cds.(*remoteclient.RemoteStore))
-	} else {
-		blkst = blockstore.NewBlockstore(cds.(*dsmount.Datastore))
-		blkst = pbstore.NewParaBlockstore(blkst, 25)
+	blkst, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, cfg.Erasure.ConnNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, cfg.Erasure.Batch)
+	if err != nil {
+		return nil, err
 	}
 
 	bsnet := bsnet.NewFromIpfsHost(h, frt)
@@ -263,11 +187,11 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	dagServ := merkledag.NewDAGService(blockservice.New(blkst, bswap))
 
 	// serve remote datastore
-	var remotedsServer dsccore.DataNodeServer
-	if cfg.EnableRemoteDS {
-		remotedsServer = remoteds.NewStoreServer(ctx, h, remoteds.PROTOCOL_V1, cds, lds, false, 180, func(token string) bool { return true }, func(token string) string { return "/ccc" })
-		remotedsServer.Serve()
-	}
+	// var remotedsServer dsccore.DataNodeServer
+	// if cfg.EnableRemoteDS {
+	// 	remotedsServer = remoteds.NewStoreServer(ctx, h, remoteds.PROTOCOL_V1, cds, lds, false, 180, func(token string) bool { return true }, func(token string) string { return "/ccc" })
+	// 	remotedsServer.Serve()
+	// }
 
 	// serve gateway
 	// currently only support simple file
@@ -297,16 +221,16 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 	}
 
 	return &Node{
-		Dht:          ipfsdht,
-		FullRT:       frt,
-		Host:         h,
-		Blockstore:   blkst,
-		Datastore:    lds,
-		Bitswap:      bswap.(*bitswap.Bitswap),
-		Dagserv:      dagServ,
-		Config:       cfg,
-		RemotedsServ: remotedsServer,
-		GatewayServ:  gatewayServ,
+		Dht:        ipfsdht,
+		FullRT:     frt,
+		Host:       h,
+		Blockstore: blkst,
+		Datastore:  lds,
+		Bitswap:    bswap.(*bitswap.Bitswap),
+		Dagserv:    dagServ,
+		Config:     cfg,
+		//RemotedsServ: remotedsServer,
+		GatewayServ: gatewayServ,
 	}, nil
 }
 

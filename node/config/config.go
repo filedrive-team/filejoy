@@ -32,20 +32,29 @@ type JSONRPC struct {
 	Root string `json:"root"`
 }
 
+type ErasureConf struct {
+	ChunkServers []string `json:"chunk_servers"`
+	DataShard    int      `json:"data_shard"`
+	ParShard     int      `json:"par_shard"`
+	ConnNum      int      `json:"conn_num"`
+	Batch        int      `json:"batch"`
+}
+
 type Config struct {
 	Identity      Identity `json:"identity"`
 	ListenAddrs   []string `json:"listen_addrs"`
 	AnnounceAddrs []string `json:"announce_addrs"`
 	Bootstrappers []string `json:"bootstrappers"`
 
-	Datastore      string  `json:"datastore"`
-	Blockstore     string  `json:"blockstore"`
-	DSClusterConf  string  `json:"ds_cluster_conf"`
-	RemoteDSConf   string  `json:"remote_ds_conf"`
-	RPC            JSONRPC `json:"rpc"`
-	Relay          bool    `json:"relay"`
-	EnableRemoteDS bool    `json:"enable_remote_ds"`
-	GateWayPort    uint    `json:"gateway_port"`
+	Datastore      string      `json:"datastore"`
+	Blockstore     string      `json:"blockstore"`
+	DSClusterConf  string      `json:"ds_cluster_conf"`
+	RemoteDSConf   string      `json:"remote_ds_conf"`
+	RPC            JSONRPC     `json:"rpc"`
+	Relay          bool        `json:"relay"`
+	EnableRemoteDS bool        `json:"enable_remote_ds"`
+	GateWayPort    uint        `json:"gateway_port"`
+	Erasure        ErasureConf `json:"erasure"`
 }
 
 func LoadOrInitConfig(path string) (*Config, error) {
