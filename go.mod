@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/filecoin-project/go-padreader v0.0.1
-	github.com/filedag-project/trans v0.0.0-20220516052435-0076b666db44
+	github.com/filedag-project/trans v0.0.0-20220516103234-605c52dc2de9
 	github.com/filedrive-team/filehelper v0.0.16
 	github.com/filedrive-team/go-ds-cluster v0.0.6
 	github.com/gin-gonic/gin v1.7.7
