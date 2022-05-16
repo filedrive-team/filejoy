@@ -2,17 +2,21 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/filedag-project/trans"
 	"github.com/filedrive-team/filehelper"
 	"github.com/filedrive-team/filehelper/dataset"
+	ncfg "github.com/filedrive-team/filejoy/node/config"
 	"github.com/ipfs/go-cid"
+	bstore "github.com/ipfs/go-ipfs-blockstore"
+	"github.com/ipfs/go-merkledag"
 	"github.com/mitchellh/go-homedir"
 	"github.com/pierrec/lz4/v4"
 	"github.com/urfave/cli/v2"
@@ -259,19 +263,14 @@ var importDatasetCmd = &cli.Command{
 	Usage: "import files from the specified dataset",
 	Flags: []cli.Flag{
 		&cli.StringFlag{
-			Name:    "dscluster",
-			Aliases: []string{"dsc"},
-			Usage:   "",
+			Name:     "prefix",
+			Required: true,
+			Usage:    "specify the dscluster config path",
 		},
-		&cli.IntFlag{
-			Name:  "retry",
-			Value: 5,
-			Usage: "retry write file to datastore",
-		},
-		&cli.IntFlag{
-			Name:  "retry-wait",
-			Value: 1,
-			Usage: "sleep time before a retry",
+		&cli.StringFlag{
+			Name:     "record-dir",
+			Required: true,
+			Usage:    "specify the dscluster config path",
 		},
 		&cli.IntFlag{
 			Name:  "parallel",
@@ -284,22 +283,51 @@ var importDatasetCmd = &cli.Command{
 			Value:   32,
 			Usage:   "specify batch read num",
 		},
+		&cli.IntFlag{
+			Name:  "conn-num",
+			Value: 16,
+			Usage: "",
+		},
 	},
-	Action: func(c *cli.Context) (err error) {
-		ctx := context.Background()
-		dscluster := c.String("dscluster-cfg")
-		parallel := c.Int("parallel")
-		batchReadNum := c.Int("batch-read-num")
-
-		targetPath := c.Args().First()
-		targetPath, err = homedir.Expand(targetPath)
+	Action: func(cctx *cli.Context) (err error) {
+		ctx := ReqContext(cctx)
+		repoPath := cctx.String("repo")
+		repoPath, err = homedir.Expand(repoPath)
 		if err != nil {
 			return err
 		}
-		if !filehelper.ExistDir(targetPath) {
-			return xerrors.Errorf("Unexpected! The path to dataset does not exist")
+
+		cfg, err := ncfg.LoadConfig(path.Join(repoPath, ncfg.DefaultNodeConf))
+		if err != nil {
+			return err
 		}
 
-		return dataset.Import(ctx, targetPath, dscluster, parallel, batchReadNum)
+		var bs bstore.Blockstore
+		connNum := cctx.Int("conn-num")
+		batch := cctx.Int("batch-read-num")
+
+		bs, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch)
+		if err != nil {
+			return err
+		}
+
+		//dsclusterCfg := c.String("dscluster")
+		parallel := cctx.Int("parallel")
+		batchReadNum := cctx.Int("batch-read-num")
+
+		tpaths := cctx.Args().Slice()
+		targetPathList := make([]string, 0)
+		for _, targetPath := range tpaths {
+			targetPath, err = homedir.Expand(targetPath)
+			if err != nil {
+				return err
+			}
+			if !filehelper.ExistDir(targetPath) {
+				return xerrors.New("Unexpected! The path to dataset does not exist")
+			}
+			targetPathList = append(targetPathList, targetPath)
+		}
+
+		return dataset.Import(ctx, bs, merkledag.V0CidPrefix(), parallel, batchReadNum, cctx.String("prefix"), cctx.String("record-dir"), targetPathList)
 	},
 }

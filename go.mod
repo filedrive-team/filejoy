@@ -5,8 +5,8 @@ go 1.17
 require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/filecoin-project/go-padreader v0.0.1
-	github.com/filedag-project/trans v0.0.0-20220516103234-605c52dc2de9
-	github.com/filedrive-team/filehelper v0.0.16
+	github.com/filedag-project/trans v0.0.1
+	github.com/filedrive-team/filehelper v0.0.17
 	github.com/filedrive-team/go-ds-cluster v0.0.6
 	github.com/gin-gonic/gin v1.7.7
 	github.com/gorilla/mux v1.7.4
@@ -18,7 +18,7 @@ require (
 	github.com/ipfs/go-ds-leveldb v0.4.2
 	github.com/ipfs/go-ipfs-blockstore v1.0.5-0.20210802214209-c56038684c45
 	github.com/ipfs/go-ipld-format v0.2.0
-	github.com/ipfs/go-ipld-legacy v0.1.0
+	github.com/ipfs/go-ipld-legacy v0.1.1
 	github.com/ipfs/go-log/v2 v2.5.1
 	github.com/ipfs/go-merkledag v0.4.1
 	github.com/ipfs/go-unixfs v0.2.6
@@ -49,12 +49,12 @@ require (
 	github.com/crackcomm/go-gitignore v0.0.0-20170627025303-887ab5e44cc3 // indirect
 	github.com/cskr/pubsub v1.0.2 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
-	github.com/filecoin-project/go-cbor-util v0.0.0-20201016124514-d0bbec7bfcc4 // indirect
 	github.com/filecoin-project/go-state-types v0.0.0-20200903145444-247639ffa6ad // indirect
 	github.com/filedag-project/mutcask v0.0.2-0.20220430075957-eb2a63dba0f7 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
+	github.com/fxamacker/cbor/v2 v2.4.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.13.0 // indirect
 	github.com/go-playground/universal-translator v0.17.0 // indirect
@@ -71,7 +71,6 @@ require (
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/howeyc/crc16 v0.0.0-20171223171357-2b2a61e366a6 // indirect
 	github.com/huin/goupnp v1.0.2 // indirect
 	github.com/ipfs/bbloom v0.0.4 // indirect
 	github.com/ipfs/go-fs-lock v0.0.7 // indirect
@@ -174,8 +173,6 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.0.1 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
-	github.com/sigurn/crc8 v0.0.0-20160107002456-e55481d6f45c // indirect
-	github.com/sigurn/utils v0.0.0-20190728110027-e1fefb11a144 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/syndtr/goleveldb v1.0.0 // indirect
@@ -184,18 +181,16 @@ require (
 	github.com/whyrusleeping/chunker v0.0.0-20181014151217-fe64bd25879f // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.opentelemetry.io/otel v0.20.0 // indirect
 	go.opentelemetry.io/otel/metric v0.20.0 // indirect
 	go.opentelemetry.io/otel/trace v0.20.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/dig v1.12.0 // indirect
-	go.uber.org/fx v1.14.2 // indirect
 	go.uber.org/multierr v1.7.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect
 	go4.org v0.0.0-20200411211856-f5505b9728dd // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519 // indirect
-	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/net v0.0.0-20211007125505-59d4e928ea9d // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
