@@ -7,18 +7,17 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/filecoin-project/go-padreader"
-	"github.com/filedrive-team/go-ds-cluster/clusterclient"
-	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
+	"github.com/filedag-project/trans"
+	ncfg "github.com/filedrive-team/filejoy/node/config"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	dsmount "github.com/ipfs/go-datastore/mount"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
 	legacy "github.com/ipfs/go-ipld-legacy"
@@ -38,7 +37,7 @@ var DagCmd = &cli.Command{
 		DagSync,
 		DagExport,
 		DagImport,
-		DagImport2,
+		//DagImport2,
 		DagHas,
 		DagGenPieces,
 	},
@@ -272,10 +271,15 @@ var DagImport2 = &cli.Command{
 			Value: false,
 			Usage: "delete the car file been imported",
 		},
-		&cli.StringFlag{
-			Name:    "dscluster",
-			Aliases: []string{"dsc"},
-			Usage:   "",
+		&cli.IntFlag{
+			Name:  "batch",
+			Value: 32,
+			Usage: "",
+		},
+		&cli.IntFlag{
+			Name:  "conn-num",
+			Value: 16,
+			Usage: "",
 		},
 	},
 	Action: func(cctx *cli.Context) error {
@@ -309,24 +313,26 @@ var DagImport2 = &cli.Command{
 				}
 			}
 		}
-		var cds datastore.Datastore
-		dsclustercfgpath := cctx.String("dscluster")
-		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
+
+		repoPath := cctx.String("repo")
+		repoPath, err = homedir.Expand(repoPath)
 		if err != nil {
 			return err
 		}
 
-		cds, err = clusterclient.NewClusterClient(ctx, dcfg)
+		cfg, err := ncfg.LoadConfig(path.Join(repoPath, ncfg.DefaultNodeConf))
 		if err != nil {
 			return err
 		}
-		cds = dsmount.New([]dsmount.Mount{
-			{
-				Prefix:    bstore.BlockPrefix,
-				Datastore: cds,
-			},
-		})
-		blkst := bstore.NewBlockstore(cds.(*dsmount.Datastore))
+
+		var blkst bstore.Blockstore
+		connNum := cctx.Int("conn-num")
+		batch := cctx.Int("batch")
+
+		blkst, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch)
+		if err != nil {
+			return err
+		}
 
 		for _, carPath := range args {
 			if !strings.HasPrefix(carPath, "/") {
@@ -462,14 +468,14 @@ var DagGenPieces = &cli.Command{
 	Name:  "gen-pieces",
 	Usage: "gen pieces from cid list",
 	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:    "dscluster",
-			Aliases: []string{"dsc"},
-			Usage:   "",
-		},
 		&cli.IntFlag{
 			Name:  "batch",
 			Value: 32,
+			Usage: "",
+		},
+		&cli.IntFlag{
+			Name:  "conn-num",
+			Value: 16,
 			Usage: "",
 		},
 		&cli.BoolFlag{
@@ -482,6 +488,26 @@ var DagGenPieces = &cli.Command{
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
+		repoPath := cctx.String("repo")
+		repoPath, err := homedir.Expand(repoPath)
+		if err != nil {
+			return err
+		}
+
+		cfg, err := ncfg.LoadConfig(path.Join(repoPath, ncfg.DefaultNodeConf))
+		if err != nil {
+			return err
+		}
+
+		var blkst bstore.Blockstore
+		connNum := cctx.Int("conn-num")
+		batch := cctx.Int("batch")
+
+		blkst, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch)
+		if err != nil {
+			return err
+		}
+
 		args := cctx.Args().Slice()
 		if len(args) < 2 {
 			log.Info("usage: filejoy dag gen-pieces [input-file] [path-to-filestore]")
@@ -495,24 +521,6 @@ var DagGenPieces = &cli.Command{
 		var shouldPad = cctx.Bool("pad")
 		var flatPath = cctx.Bool("flat-path")
 		var batchNum = cctx.Int("batch")
-		var cds datastore.Datastore
-		dsclustercfgpath := cctx.String("dscluster")
-		dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
-		if err != nil {
-			return err
-		}
-
-		cds, err = clusterclient.NewClusterClient(ctx, dcfg)
-		if err != nil {
-			return err
-		}
-		cds = dsmount.New([]dsmount.Mount{
-			{
-				Prefix:    bstore.BlockPrefix,
-				Datastore: cds,
-			},
-		})
-		blkst := bstore.NewBlockstore(cds.(*dsmount.Datastore))
 
 		cidListFile := args[0]
 		f, err := os.Open(cidListFile)

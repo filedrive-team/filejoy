@@ -197,6 +197,8 @@ github.com/filedag-project/trans v0.0.0-20220515125148-5d7522be6337 h1:9OV9sKFY2
 github.com/filedag-project/trans v0.0.0-20220515125148-5d7522be6337/go.mod h1:FBi2BhRmbHF5EoXdxT115TwXBW7t7NsS9zY7JgHqQOY=
 github.com/filedag-project/trans v0.0.0-20220516012614-0b455ad38783 h1:wtkv0wZc5Ko8gP9GRijq/+My+SEb5vOFl6pYrsH7g/8=
 github.com/filedag-project/trans v0.0.0-20220516012614-0b455ad38783/go.mod h1:FBi2BhRmbHF5EoXdxT115TwXBW7t7NsS9zY7JgHqQOY=
+github.com/filedag-project/trans v0.0.0-20220516052435-0076b666db44 h1:wci1kySSQlERPGN6vxYXVRxgm8w2BQdPJuYIg37H0Gk=
+github.com/filedag-project/trans v0.0.0-20220516052435-0076b666db44/go.mod h1:FBi2BhRmbHF5EoXdxT115TwXBW7t7NsS9zY7JgHqQOY=
 github.com/filedrive-team/filehelper v0.0.2/go.mod h1:nwlxmeyGqIt2zl2XqL59ySUybmutjmEqFOYEWpfNzVg=
 github.com/filedrive-team/filehelper v0.0.4/go.mod h1:TpZS08Qcbfzc7oF07juG8RsCrg2F88cW+A+EMPP+6AA=
 github.com/filedrive-team/filehelper v0.0.9/go.mod h1:AEis9leNL2wiBOpDJrWCkw8j/MWeb8E+SJq9CQjh3Ds=
