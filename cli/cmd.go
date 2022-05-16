@@ -105,5 +105,6 @@ func PrintProgress(pb chan api.PBar) error {
 		}
 		bar.Set64(item.Current)
 	}
+	fmt.Println()
 	return nil
 }
