@@ -192,8 +192,12 @@ github.com/filecoin-project/go-state-types v0.0.0-20200903145444-247639ffa6ad h1
 github.com/filecoin-project/go-state-types v0.0.0-20200903145444-247639ffa6ad/go.mod h1:IQ0MBPnonv35CJHtWSN3YY1Hz2gkPru1Q9qoaYLxx9I=
 github.com/filedag-project/mutcask v0.0.2-0.20220430075957-eb2a63dba0f7 h1:pIIL7Dcl8MQLYEiuICqPWtpjuznndLciSiZ2/vtwwU0=
 github.com/filedag-project/mutcask v0.0.2-0.20220430075957-eb2a63dba0f7/go.mod h1:lOXZ2AFMKrID3LuwhrCjcc3UZqfO+0Dlo6/zGLpsLSg=
+github.com/filedag-project/mutcask v0.0.2 h1:WxMVNxUOSjjy8GzmCRiZI2saprE9qzzj+re9l+SdFu4=
+github.com/filedag-project/mutcask v0.0.2/go.mod h1:lOXZ2AFMKrID3LuwhrCjcc3UZqfO+0Dlo6/zGLpsLSg=
 github.com/filedag-project/trans v0.0.1 h1:sotjNCaOlH/skdlNCthvYw0XVIOhrMhCpdp6PVZ3tpA=
 github.com/filedag-project/trans v0.0.1/go.mod h1:FBi2BhRmbHF5EoXdxT115TwXBW7t7NsS9zY7JgHqQOY=
+github.com/filedag-project/trans v0.0.2 h1:swyRpNnlT0+N4Ea0RnNsUwJ3TBYLpnRv/mY3vAHtAP4=
+github.com/filedag-project/trans v0.0.2/go.mod h1:zttZuuKBOHQP467VmQjQIR6j91hmTlraTz/vhHCxaO4=
 github.com/filedrive-team/filehelper v0.0.2/go.mod h1:nwlxmeyGqIt2zl2XqL59ySUybmutjmEqFOYEWpfNzVg=
 github.com/filedrive-team/filehelper v0.0.4/go.mod h1:TpZS08Qcbfzc7oF07juG8RsCrg2F88cW+A+EMPP+6AA=
 github.com/filedrive-team/filehelper v0.0.9/go.mod h1:AEis9leNL2wiBOpDJrWCkw8j/MWeb8E+SJq9CQjh3Ds=

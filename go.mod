@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/filecoin-project/go-jsonrpc v0.1.5
 	github.com/filecoin-project/go-padreader v0.0.1
-	github.com/filedag-project/trans v0.0.1
+	github.com/filedag-project/trans v0.0.2
 	github.com/filedrive-team/filehelper v0.0.17
 	github.com/filedrive-team/go-ds-cluster v0.0.6
 	github.com/gin-gonic/gin v1.7.7
@@ -50,7 +50,7 @@ require (
 	github.com/cskr/pubsub v1.0.2 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/filecoin-project/go-state-types v0.0.0-20200903145444-247639ffa6ad // indirect
-	github.com/filedag-project/mutcask v0.0.2-0.20220430075957-eb2a63dba0f7 // indirect
+	github.com/filedag-project/mutcask v0.0.2 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
