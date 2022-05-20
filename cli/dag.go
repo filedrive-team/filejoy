@@ -568,7 +568,7 @@ var DagGenPieces = &cli.Command{
 			}
 
 			if err = writePieceV3(ctx, cid, ppath, blkst, batchNum, shouldPad); err != nil {
-				log.Error("%s write piece failed: %s", cid, err)
+				log.Error("%s,%s write piece failed: %s", cid, arr[1], err)
 				continue
 			}
 
