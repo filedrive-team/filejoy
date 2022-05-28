@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -107,4 +109,14 @@ func PrintProgress(pb chan api.PBar) error {
 	}
 	fmt.Println()
 	return nil
+}
+
+func readLine(r *bufio.Reader, delim byte) (string, error) {
+	line, err := r.ReadString(delim)
+	if err != nil {
+		if err == io.EOF && len(line) > 0 {
+			return line, nil
+		}
+	}
+	return line, err
 }

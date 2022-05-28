@@ -530,7 +530,7 @@ var DagGenPieces = &cli.Command{
 		defer f.Close()
 		liner := bufio.NewReader(f)
 		for {
-			line, err := liner.ReadString('\n')
+			line, err := readLine(liner, '\n')
 			if err != nil {
 				if err == io.EOF {
 					fmt.Println("end with input file")

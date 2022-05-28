@@ -146,7 +146,7 @@ var SyncssCmd = &cli.Command{
 		slice_line_cache := make([]string, 0)
 		slice_size := int64(0)
 		for {
-			line, err := sr.ReadString('\n')
+			line, err := readLine(sr, '\n')
 			if err != nil {
 				if err == io.EOF {
 					fmt.Println("end with snapshot file")
