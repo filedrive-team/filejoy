@@ -14,7 +14,7 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/go-padreader"
-	"github.com/filedag-project/trans"
+	"github.com/filedrive-team/filejoy/node"
 	ncfg "github.com/filedrive-team/filejoy/node/config"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
@@ -271,16 +271,16 @@ var DagImport2 = &cli.Command{
 			Value: false,
 			Usage: "delete the car file been imported",
 		},
-		&cli.IntFlag{
-			Name:  "batch",
-			Value: 32,
-			Usage: "",
-		},
-		&cli.IntFlag{
-			Name:  "conn-num",
-			Value: 16,
-			Usage: "",
-		},
+		// &cli.IntFlag{
+		// 	Name:  "batch",
+		// 	Value: 32,
+		// 	Usage: "",
+		// },
+		// &cli.IntFlag{
+		// 	Name:  "conn-num",
+		// 	Value: 16,
+		// 	Usage: "",
+		// },
 	},
 	Action: func(cctx *cli.Context) error {
 		ctx := ReqContext(cctx)
@@ -324,12 +324,7 @@ var DagImport2 = &cli.Command{
 		if err != nil {
 			return err
 		}
-
-		var blkst bstore.Blockstore
-		connNum := cctx.Int("conn-num")
-		batch := cctx.Int("batch")
-
-		blkst, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch)
+		_, blkst, err := node.ConfigStorage(ctx, cfg, repoPath)
 		if err != nil {
 			return err
 		}
@@ -468,16 +463,16 @@ var DagGenPieces = &cli.Command{
 	Name:  "gen-pieces",
 	Usage: "gen pieces from cid list",
 	Flags: []cli.Flag{
-		&cli.IntFlag{
-			Name:  "batch",
-			Value: 32,
-			Usage: "",
-		},
-		&cli.IntFlag{
-			Name:  "conn-num",
-			Value: 16,
-			Usage: "",
-		},
+		// &cli.IntFlag{
+		// 	Name:  "batch",
+		// 	Value: 32,
+		// 	Usage: "",
+		// },
+		// &cli.IntFlag{
+		// 	Name:  "conn-num",
+		// 	Value: 16,
+		// 	Usage: "",
+		// },
 		&cli.BoolFlag{
 			Name: "flat-path",
 		},
@@ -499,11 +494,7 @@ var DagGenPieces = &cli.Command{
 			return err
 		}
 
-		var blkst bstore.Blockstore
-		connNum := cctx.Int("conn-num")
-		batch := cctx.Int("batch")
-
-		blkst, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch)
+		_, blkst, err := node.ConfigStorage(ctx, cfg, repoPath)
 		if err != nil {
 			return err
 		}
