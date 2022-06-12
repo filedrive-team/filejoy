@@ -42,7 +42,6 @@ import (
 	libp2pquic "github.com/libp2p/go-libp2p-quic-transport"
 	"github.com/multiformats/go-multiaddr"
 	badgerds "github.com/textileio/go-ds-badger3"
-	"golang.org/x/xerrors"
 )
 
 var log = logging.Logger("filejoy-node")
@@ -99,7 +98,7 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 		libp2p.Routing(func(h host.Host) (routing.PeerRouting, error) {
 			ipfsdht, err = dht.New(ctx, h, dht.Datastore(lds))
 			if err != nil {
-				return nil, xerrors.Errorf("constructing dht: %w", err)
+				return nil, fmt.Errorf("constructing dht: %s", err)
 			}
 			return ipfsdht, nil
 		}),
@@ -174,22 +173,12 @@ func Setup(ctx context.Context, cfg *ncfg.Config, repoPath string) (*Node, error
 
 	frt, err := fullrt.NewFullRT(h, dht.DefaultPrefix, dhtopts)
 	if err != nil {
-		return nil, xerrors.Errorf("constructing fullrt: %w", err)
+		return nil, fmt.Errorf("constructing fullrt: %s", err)
 	}
 
 	var blkst blockstore.Blockstore
 	var cds datastore.Datastore
-	if len(cfg.Erasure.ChunkServers) > 0 {
-		blkst, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, cfg.Erasure.ConnNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, cfg.Erasure.Batch)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		cds, blkst, err = blockstoreFromDatastore(ctx, cfg, repoPath)
-		if err != nil {
-			return nil, err
-		}
-	}
+	cds, blkst, err = ConfigStorage(ctx, cfg, repoPath)
 
 	bsnet := bsnet.NewFromIpfsHost(h, frt)
 
@@ -261,6 +250,17 @@ func (n *Node) Close() (err error) {
 		}
 	}
 	return
+}
+
+func ConfigStorage(ctx context.Context, cfg *ncfg.Config, repoPath string) (datastore.Datastore, blockstore.Blockstore, error) {
+	if len(cfg.Erasure.ChunkServers) > 0 {
+		blkst, err := trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, cfg.Erasure.ConnNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, cfg.Erasure.Batch)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, blkst, nil
+	}
+	return blockstoreFromDatastore(ctx, cfg, repoPath)
 }
 
 func blockstoreFromDatastore(ctx context.Context, cfg *ncfg.Config, repoPath string) (datastore.Datastore, blockstore.Blockstore, error) {
