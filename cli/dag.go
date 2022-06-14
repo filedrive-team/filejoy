@@ -37,7 +37,7 @@ var DagCmd = &cli.Command{
 		DagSync,
 		DagExport,
 		DagImport,
-		//DagImport2,
+		DagImport2,
 		DagHas,
 		DagGenPieces,
 	},
