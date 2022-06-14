@@ -306,7 +306,7 @@ var importDatasetCmd = &cli.Command{
 		connNum := cctx.Int("conn-num")
 		batch := cctx.Int("batch-read-num")
 
-		bs, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch)
+		bs, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch, "")
 		if err != nil {
 			return err
 		}

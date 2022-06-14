@@ -254,7 +254,7 @@ func (n *Node) Close() (err error) {
 
 func ConfigStorage(ctx context.Context, cfg *ncfg.Config, repoPath string) (datastore.Datastore, blockstore.Blockstore, error) {
 	if len(cfg.Erasure.ChunkServers) > 0 {
-		blkst, err := trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, cfg.Erasure.ConnNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, cfg.Erasure.Batch)
+		blkst, err := trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, cfg.Erasure.ConnNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, cfg.Erasure.Batch, "")
 		if err != nil {
 			return nil, nil, err
 		}
