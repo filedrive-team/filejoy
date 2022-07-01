@@ -14,7 +14,11 @@ import (
 	"github.com/filedrive-team/filehelper"
 	"github.com/filedrive-team/filehelper/dataset"
 	ncfg "github.com/filedrive-team/filejoy/node/config"
+	"github.com/filedrive-team/go-ds-cluster/clusterclient"
+	dsccfg "github.com/filedrive-team/go-ds-cluster/config"
 	"github.com/ipfs/go-cid"
+	"github.com/ipfs/go-datastore"
+	dsmount "github.com/ipfs/go-datastore/mount"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
 	"github.com/ipfs/go-merkledag"
 	"github.com/mitchellh/go-homedir"
@@ -288,6 +292,10 @@ var importDatasetCmd = &cli.Command{
 			Value: 16,
 			Usage: "",
 		},
+		&cli.StringFlag{
+			Name:  "dscluster",
+			Usage: "path to dscluster config",
+		},
 	},
 	Action: func(cctx *cli.Context) (err error) {
 		ctx := ReqContext(cctx)
@@ -301,17 +309,41 @@ var importDatasetCmd = &cli.Command{
 		if err != nil {
 			return err
 		}
-
+		dsclusterCfg := cctx.String("dscluster")
 		var bs bstore.Blockstore
-		connNum := cctx.Int("conn-num")
-		batch := cctx.Int("batch-read-num")
+		if dsclusterCfg != "" {
+			var cds datastore.Datastore
+			dsclustercfgpath := dsclusterCfg
+			if !strings.HasPrefix(dsclustercfgpath, "/") {
+				dsclustercfgpath = filepath.Join(repoPath, dsclustercfgpath)
+			}
+			dcfg, err := dsccfg.ReadConfig(dsclustercfgpath)
+			if err != nil {
+				return err
+			}
 
-		bs, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch, "")
-		if err != nil {
-			return err
+			cds, err = clusterclient.NewClusterClient(ctx, dcfg)
+			if err != nil {
+				return err
+			}
+			cds = dsmount.New([]dsmount.Mount{
+				{
+					Prefix:    bstore.BlockPrefix,
+					Datastore: cds,
+				},
+			})
+			bs = bstore.NewBlockstore(cds.(*dsmount.Datastore))
+			log.Info("use dscluster as blockstore")
+		} else {
+			connNum := cctx.Int("conn-num")
+			batch := cctx.Int("batch-read-num")
+
+			bs, err = trans.NewErasureBlockstore(ctx, cfg.Erasure.ChunkServers, connNum, cfg.Erasure.DataShard, cfg.Erasure.ParShard, batch, "")
+			if err != nil {
+				return err
+			}
 		}
 
-		//dsclusterCfg := c.String("dscluster")
 		parallel := cctx.Int("parallel")
 		batchReadNum := cctx.Int("batch-read-num")
 
