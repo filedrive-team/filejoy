@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/filecoin-project/go-padreader"
-	"github.com/filedrive-team/filehelper/carv1"
 	"github.com/filedrive-team/filejoy/node"
 	ncfg "github.com/filedrive-team/filejoy/node/config"
 	blocks "github.com/ipfs/go-block-format"
@@ -465,11 +465,11 @@ var DagGenPieces = &cli.Command{
 	Name:  "gen-pieces",
 	Usage: "gen pieces from cid list",
 	Flags: []cli.Flag{
-		// &cli.IntFlag{
-		// 	Name:  "batch",
-		// 	Value: 32,
-		// 	Usage: "",
-		// },
+		&cli.IntFlag{
+			Name:  "batch",
+			Value: 32,
+			Usage: "",
+		},
 		// &cli.IntFlag{
 		// 	Name:  "conn-num",
 		// 	Value: 16,
@@ -572,18 +572,6 @@ var DagGenPieces = &cli.Command{
 	},
 }
 
-type offlineng struct {
-	ng bstore.Blockstore
-}
-
-func (ng *offlineng) Get(ctx context.Context, cid cid.Cid) (format.Node, error) {
-	return carv1.GetNode(ctx, cid, ng.ng)
-}
-
-func (ng *offlineng) GetMany(ctx context.Context, cids []cid.Cid) <-chan *format.NodeOption {
-	return nil
-}
-
 func flatPiecePath(piececid string, filestore string) (dir string, path string) {
 	dir = filestore
 	path = filepath.Join(dir, piececid)
@@ -612,6 +600,10 @@ func isDir(path string) (bool, error) {
 
 // 深度优先算法
 func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blockstore, batchNum int, shouldPad bool) error {
+	startTime := time.Now()
+	defer func() {
+		fmt.Printf("time elapsed: %d\n", time.Since(startTime).Milliseconds())
+	}()
 	nd, err := getNode(ctx, root, bs)
 	if err != nil {
 		return err
@@ -629,18 +621,17 @@ func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blo
 	}, f); err != nil {
 		return err
 	}
-	log.Info("car header written")
 	// write data
 	// write root node
 	if err := carutil.LdWrite(f, nd.Cid().Bytes(), nd.RawData()); err != nil {
 		return err
 	}
-	log.Info("root node written")
 	// set cid set to only save uniq cid to car file
 	cidSet := cid.NewSet()
 	cidSet.Add(nd.Cid())
-	fmt.Printf("cid: %s\n", nd.Cid())
+	//fmt.Printf("cid: %s\n", nd.Cid())
 	if err := BlockWalk(ctx, nd, bs, batchNum, func(node format.Node) error {
+		//fmt.Printf("cid: %s\n", node.Cid())
 		if cidSet.Has(node.Cid()) {
 			return nil
 		}
@@ -648,7 +639,7 @@ func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blo
 			return err
 		}
 		cidSet.Add(node.Cid())
-		fmt.Printf("cid: %s\n", node.Cid())
+		//fmt.Printf("cid: %s\n", node.Cid())
 		return nil
 	}); err != nil {
 		return err
@@ -786,6 +777,7 @@ func BlockWalk(ctx context.Context, node format.Node, bs bstore.Blockstore, batc
 	if len(links) == 0 {
 		return nil
 	}
+
 	loadedNode := make([]format.Node, len(links))
 	errmsg := make([]string, 0)
 	var wg sync.WaitGroup
