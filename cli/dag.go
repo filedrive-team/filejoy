@@ -14,10 +14,12 @@ import (
 	"sync"
 
 	"github.com/filecoin-project/go-padreader"
+	"github.com/filedrive-team/filehelper/carv1"
 	"github.com/filedrive-team/filejoy/node"
 	ncfg "github.com/filedrive-team/filejoy/node/config"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
 	legacy "github.com/ipfs/go-ipld-legacy"
@@ -558,15 +560,64 @@ var DagGenPieces = &cli.Command{
 				return err
 			}
 
-			if err = writePieceV3(ctx, cid, ppath, blkst, batchNum, shouldPad); err != nil {
-				log.Error("%s,%s write piece failed: %s", cid, arr[1], err)
-				continue
+			// if err = writePieceV3(ctx, cid, ppath, blkst, batchNum, shouldPad); err != nil {
+			// 	log.Error("%s,%s write piece failed: %s", cid, arr[1], err)
+			// 	continue
+			// }
+			pr, pw := io.Pipe()
+
+			errCh := make(chan error, 2)
+
+			nodeGetter := &offlineng{
+				ng: blkst,
+			}
+
+			go func() {
+				defer func() {
+					if err := pw.Close(); err != nil {
+						errCh <- fmt.Errorf("stream flush failed: %s", err)
+					}
+					close(errCh)
+				}()
+				carSize, err := carv1.NewBatch(ctx, nodeGetter).Write(cid, pw, batchNum)
+				if err != nil {
+					errCh <- err
+				}
+				log.Infof("cid: %s, car size: %d", cid, carSize)
+				if shouldPad {
+					log.Infof("pad the car ")
+					if err := carv1.PadCar(pw, int64(carSize)); err != nil {
+						errCh <- err
+					}
+				}
+			}()
+
+			f, err := os.Create(ppath)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			if _, err = io.Copy(f, pr); err != nil {
+				return err
 			}
 
 		}
 		return nil
 
 	},
+}
+
+type offlineng struct {
+	ng blockstore.Blockstore
+}
+
+func (ng *offlineng) Get(ctx context.Context, cid cid.Cid) (format.Node, error) {
+	return carv1.GetNode(ctx, cid, ng.ng)
+}
+
+func (ng *offlineng) GetMany(ctx context.Context, cids []cid.Cid) <-chan *format.NodeOption {
+	return nil
 }
 
 func flatPiecePath(piececid string, filestore string) (dir string, path string) {
