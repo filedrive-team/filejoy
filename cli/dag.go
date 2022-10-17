@@ -19,10 +19,10 @@ import (
 	ncfg "github.com/filedrive-team/filejoy/node/config"
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	blockstore "github.com/ipfs/go-ipfs-blockstore"
 	bstore "github.com/ipfs/go-ipfs-blockstore"
 	format "github.com/ipfs/go-ipld-format"
 	legacy "github.com/ipfs/go-ipld-legacy"
+	logging "github.com/ipfs/go-log/v2"
 	gocar "github.com/ipld/go-car"
 	carutil "github.com/ipld/go-car/util"
 	"github.com/mitchellh/go-homedir"
@@ -484,6 +484,7 @@ var DagGenPieces = &cli.Command{
 		},
 	},
 	Action: func(cctx *cli.Context) error {
+		logging.SetLogLevel("*", "Info")
 		ctx := ReqContext(cctx)
 		repoPath := cctx.String("repo")
 		repoPath, err := homedir.Expand(repoPath)
@@ -609,7 +610,7 @@ var DagGenPieces = &cli.Command{
 }
 
 type offlineng struct {
-	ng blockstore.Blockstore
+	ng bstore.Blockstore
 }
 
 func (ng *offlineng) Get(ctx context.Context, cid cid.Cid) (format.Node, error) {

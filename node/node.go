@@ -258,6 +258,7 @@ func ConfigStorage(ctx context.Context, cfg *ncfg.Config, repoPath string) (data
 		if err != nil {
 			return nil, nil, err
 		}
+		log.Info("erasure blockstore")
 		return nil, blkst, nil
 	}
 	return blockstoreFromDatastore(ctx, cfg, repoPath)
