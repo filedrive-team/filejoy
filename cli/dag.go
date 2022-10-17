@@ -561,46 +561,9 @@ var DagGenPieces = &cli.Command{
 				return err
 			}
 
-			// if err = writePieceV3(ctx, cid, ppath, blkst, batchNum, shouldPad); err != nil {
-			// 	log.Error("%s,%s write piece failed: %s", cid, arr[1], err)
-			// 	continue
-			// }
-			pr, pw := io.Pipe()
-
-			errCh := make(chan error, 2)
-
-			nodeGetter := &offlineng{
-				ng: blkst,
-			}
-
-			go func() {
-				defer func() {
-					if err := pw.Close(); err != nil {
-						errCh <- fmt.Errorf("stream flush failed: %s", err)
-					}
-					close(errCh)
-				}()
-				carSize, err := carv1.NewBatch(ctx, nodeGetter).Write(cid, pw, batchNum)
-				if err != nil {
-					errCh <- err
-				}
-				log.Infof("cid: %s, car size: %d", cid, carSize)
-				if shouldPad {
-					log.Infof("pad the car ")
-					if err := carv1.PadCar(pw, int64(carSize)); err != nil {
-						errCh <- err
-					}
-				}
-			}()
-
-			f, err := os.Create(ppath)
-			if err != nil {
-				return err
-			}
-			defer f.Close()
-
-			if _, err = io.Copy(f, pr); err != nil {
-				return err
+			if err = writePieceV3(ctx, cid, ppath, blkst, batchNum, shouldPad); err != nil {
+				log.Error("%s,%s write piece failed: %s", cid, arr[1], err)
+				continue
 			}
 
 		}
@@ -666,16 +629,17 @@ func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blo
 	}, f); err != nil {
 		return err
 	}
-
+	log.Info("car header written")
 	// write data
 	// write root node
 	if err := carutil.LdWrite(f, nd.Cid().Bytes(), nd.RawData()); err != nil {
 		return err
 	}
+	log.Info("root node written")
 	// set cid set to only save uniq cid to car file
 	cidSet := cid.NewSet()
 	cidSet.Add(nd.Cid())
-	//fmt.Printf("cid: %s\n", nd.Cid())
+	fmt.Printf("cid: %s\n", nd.Cid())
 	if err := BlockWalk(ctx, nd, bs, batchNum, func(node format.Node) error {
 		if cidSet.Has(node.Cid()) {
 			return nil
@@ -684,7 +648,7 @@ func writePieceV3(ctx context.Context, root cid.Cid, ppath string, bs bstore.Blo
 			return err
 		}
 		cidSet.Add(node.Cid())
-		//fmt.Printf("cid: %s\n", node.Cid())
+		fmt.Printf("cid: %s\n", node.Cid())
 		return nil
 	}); err != nil {
 		return err
